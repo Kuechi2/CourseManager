@@ -1,0 +1,85 @@
+﻿@page "/teacheredit"
+@attribute [Authorize]
+@layout MainLayout
+@using System.ComponentModel.DataAnnotations
+@using CourseManager.Data
+@using Microsoft.EntityFrameworkCore
+@inject IStudentService Service
+@inject IJSRuntime JS
+@implements IDisposable
+
+<div class="editor-card">
+    <h3>Neue Person anlegen</h3>
+    <EditForm Model="@newTeacher" OnValidSubmit="HandleValidSubmit">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <div class="form-group">
+            <label>Vorname:</label>
+            <input class="form-control"
+                   @bind="newTeacher.FirstName"
+                   @ref="vorname" />
+        </div>
+
+
+        <div class="form-group">
+            <label>Nachname:</label>
+            <InputText @bind-Value="newTeacher.LastName" class="form-control" />
+        </div>
+
+
+        <button type="submit" class="btn btn-primary">Im Pool speichern</button>
+    </EditForm>
+    <ul class="scroll-container">
+        @foreach (var teacher in Selectore)
+        {
+            <li>
+                @teacher.FirstName @teacher.LastName
+            </li>
+        }
+    </ul>
+
+</div>
+
+@code {
+    private List<TeacherDto> Selectore = new();
+    private TeacherDto newTeacher = new();
+    private ElementReference vorname;
+    private List<TeacherDto> pool = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await RefreshData();
+    }
+
+    private async Task RefreshData()
+    {
+        pool = await Service.GetTeachersAsync();
+        StateHasChanged();
+        Selectore = pool.ToList();
+    }
+    private async Task HandleValidSubmit()
+    {
+        await Service.AddTeacher(newTeacher);
+        Selectore.Add(newTeacher);
+        newTeacher = new(); // Reset
+        await RefreshData();
+    }
+
+
+    protected override void OnInitialized()
+    {
+        Service.OnChanged += StateHasChanged;
+        Selectore = pool.ToList();
+    }
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        //if (!firstRender) return;
+        await vorname.FocusAsync();
+    }
+
+    public void Dispose()
+    {
+        Service.OnChanged -= StateHasChanged;
+    }
+}

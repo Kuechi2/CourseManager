@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="CourseManager/CourseManager.Client/CourseManager.Client.csproj" />
+  <Project Path="CourseManager/CourseManager/CourseManager.csproj" />
+</Solution>

@@ -1,0 +1,140 @@
+﻿@page "/rule-editor"
+@attribute [Authorize]
+@using CourseManager.Data
+@inject IStudentService Service
+
+<div class="container-fluid p-4 bg-dark text-white min-vh-100">
+    <div class="d-flex justify-content-between align-items-center mb-4 border-bottom border-warning pb-2">
+        <h1 class="h2 text-warning mb-0 fw-bold">🛠️ REGEL-WERKSTATT</h1>
+        @if (activeSet != null)
+        {
+            <div class="d-flex align-items-center">
+                <input class="form-control form-control-sm bg-dark text-white border-warning me-2"
+                       style="width: 300px; font-size: 1.2rem;" @bind="activeSet.Title" />
+                <button class="btn btn-success" @onclick="Save">💾 SPEICHERN</button>
+            </div>
+        }
+    </div>
+
+    <div class="row">
+        <div class="col-md-2 border-end border-secondary">
+            <h5 class="text-secondary uppercase small fw-bold">Sets</h5>
+            @foreach (var set in allRuleSets)
+            {
+                <button class="btn @(activeSet?.Id == set.Id ? "btn-warning" : "btn-outline-light") btn-sm w-100 mb-2 py-2"
+                        @onclick="() => activeSet = set">
+                    @set.Title
+                </button>
+            }
+            <button class="btn btn-outline-success btn-sm w-100 mt-3" @onclick="CreateNewSet">➕ NEU</button>
+        </div>
+
+        <div class="col-md-10 ps-4">
+            @if (activeSet != null)
+            {
+                <div class="rules-container" style="max-height: 70vh; overflow-y: auto;">
+                    @foreach (var rule in activeSet.Rules)
+                    {
+                        <div class="rule-card p-4 mb-4 border-start border-warning border-5 rounded shadow-lg bg-secondary text-white">
+                            <div class="row g-3">
+                                <div class="col-md-4 border-end border-dark">
+                                    <div class="mb-2">
+                                        <input class="form-control fw-bold border-0 bg-dark text-white" @bind="rule.Name" placeholder="Regel-Name" />
+                                    </div>
+                                    <select class="form-select form-select-sm bg-dark text-white border-0" @bind="rule.Type">
+                                        <option value="@RuleType.Standard">Einzelschüler</option>
+                                        <option value="@RuleType.Partner">Partner</option>
+                                        <option value="@RuleType.Timer">Timer</option>
+                                    </select>
+                                    <div class="mt-3 d-flex align-items-center">
+                                        <span class="me-2 small">Punkte:</span>
+                                        <input type="number" class="form-control form-control-sm w-25 bg-dark text-white border-0" @bind="rule.Points" min="-10" max="10" />
+                                        <button class="btn btn-link text-danger ms-auto" @onclick="() => activeSet.Rules.Remove(rule)">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div class="col-md-8 d-flex flex-column justify-content-center">
+                                    <textarea class="form-control bg-dark text-white border-0 mb-2"
+                                              @bind="rule.ExplanationString"
+                                              placeholder="Erklärung hier tippen..." rows="1"></textarea>
+
+                                    <div class="preview-box p-3 bg-black rounded border border-warning">
+                                        <span class="text-warning small d-block mb-1 uppercase fw-bold">Wir legen fest:</span>
+                                        <div class="display-6 fw-bold text-center">
+                                            @FormatPreview(rule)
+                                            <span class="text-warning ms-3">(@rule.Points Pkt.)</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+
+                <button class="btn btn-primary btn-lg w-100 py-3 mt-2 shadow fw-bold" @onclick="AddRule">
+                    🚀 NÄCHSTE REGEL FESTLEGEN
+                </button>
+            }
+        </div>
+    </div>
+</div>
+
+<style>
+    .rule-card {
+        transition: transform 0.2s;
+    }
+
+        .rule-card:hover {
+            transform: scale(1.01);
+        }
+    /* Scrollbar Styling für Dark Mode */
+    ::-webkit-scrollbar {
+        width: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+        background: #222;
+    }
+
+    ::-webkit-scrollbar-thumb {
+        background: #ffc107;
+        border-radius: 10px;
+    }
+</style>
+@code {
+    private List<RuleSet> allRuleSets = new();
+    private RuleSet? activeSet;
+
+    // Dummy-Person für die Vorschau
+    private Person previewPerson = new() { FirstName = "Max", LastName = "Mustermann" };
+
+    protected override async Task OnInitializedAsync()
+    {
+        allRuleSets = await Service.GetRuleSetsAsync();
+    }
+
+    private void CreateNewSet()
+    {
+        activeSet = new RuleSet { Id = Guid.NewGuid(), Title = "neues Set" };
+        allRuleSets.Add(activeSet);
+    }
+
+    private void AddRule()
+    {
+        if (activeSet == null) return;
+        activeSet?.Rules.Add(new Rule { Id = Guid.NewGuid(), Name = "Meldung", ExplanationString = "{name} hat sich toll gemeldet." });
+    }
+
+    private string FormatPreview(Rule rule)
+    {
+        return RuleEngine.FormatExplanation(rule, previewPerson);
+    }
+
+    private async Task Save()
+    {
+        if (activeSet == null) return;
+        await Service.SaveRuleSetAsync(activeSet);
+    }
+}

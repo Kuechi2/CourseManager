@@ -1,0 +1,689 @@
+﻿@* GeometryCanvas.razor  *@
+@page "/svgcanvas"
+@page "/svgcanvas/{CourseId:guid}"
+@attribute [Authorize]
+@using CourseManager.Data
+@using System.Threading.Tasks
+@inject IStudentService Service
+@inject IUserProvider userProvider
+@inject AssignmentService State
+<div class="rule-status-panel p-1 mb-1 border rounded @(activeRules.Any() ? "bg-success-subtle" : "bg-secondary-subtle")">
+    <div class="d-flex align-items-center">
+        <div class="bi bi-backpack3-fill fs-1 text-primary" />
+        <div>
+            <div class="small text-muted text-uppercase fw-bold">Kurs</div>
+            @if (currentCourse != null)
+            {
+                <span class="text-primary">@currentCourse.Title | @currentCourse.Enrollments.Count Teilnehmende</span>
+            }
+        </div>
+    </div>
+</div>
+<div class="d-flex flex-row align-items-start bg-light p-3 rounded border shadow-sm">
+
+    <div class="flex-grow-1 bg-white border rounded position-relative shadow-inner" style="overflow: hidden;">
+        <svg @ref="_svgElement"
+            viewBox="0 0 1000 600"
+            class="w-100 h-auto"
+            style="display: block; touch-action: none; background: white;"
+            @onpointerdown="OnSvgMouseDown"
+            @onpointerup="OnSvgMouseUp"
+            @onpointermove="OnSvgMouseMove">
+            @foreach (var drawable in Manager.Drawables.Where(d => d.IsVisible && !IsBeingDragged(d as CanvasSeat)))
+            {
+                @drawable.SvgRenderFragment
+            }
+            @foreach (var drawable in Manager.Drawables.Where(d => d.IsVisible && IsBeingDragged(d as CanvasSeat)))
+            {
+                <g class="dragging-layer">
+                    @drawable.SvgRenderFragment
+                </g>
+            }
+            @foreach (var seat in Manager.Drawables.OfType<CanvasSeat>().Where(s => s.Participant != null))
+            {
+                <SeatStatusIndicator Seat="seat" />
+            }
+        </svg>
+    </div>
+
+    <div class="ms-3 d-flex flex-column gap-2" style="width: 200px; min-width: 200px;">
+        <div class="p-2 mb-2 bg-dark text-white rounded text-center small fw-bold shadow-sm">
+            STEUERUNG
+        </div>
+       
+        <button class="btn btn-primary btn-sm text-start d-flex align-items-center" @onclick="SelectAllSeats">
+            <i class="bi bi-people me-2"></i> Alle wählen
+        </button>
+
+        <button class="btn btn-warning btn-sm text-start d-flex align-items-center" @onclick="AddRect">
+            <i class="bi bi-square me-2"></i> leerer Tisch
+        </button>
+        <button class="btn btn-outline-danger btn-sm text-start mt-auto" @onclick="Clear">
+            <i class="bi bi-trash me-2"></i> leere Tische löschen
+        </button>
+        <AssignmentControlPanel />
+
+
+        <div class="rounded p-2 text-white text-center shadow-sm fw-bold"
+             style="background-color: @(_courseAverage >= 0 ? "#28a745" : "#dc3545"); font-size: 1.25rem;">
+            Ø: @_courseAverage.ToString("F1")
+        </div>
+        <div class="my-2 border-top"></div>
+        <div class="mt-2 p-2 border rounded bg-white shadow-sm" style="font-size: 0.85rem;">
+            <div class="small text-muted text-uppercase fw-bold border-bottom mb-1 pb-1">Regeln</div>
+            @if (activeRules.Any())
+            {
+                <div class="text-success fw-bold">@ruleSetName</div>
+                <div class="text-muted">(@activeRules.Count aktiv)</div>
+            }
+            else
+            {
+                <div class="text-danger fw-bold">Keine Regeln</div>
+            }
+        </div>
+
+        <div class="ms-1 d-flex flex-column gap-2" style="width: 200px;">
+            <div class="p-1 mb-1 bg-secondary text-white rounded text-center small shadow-sm">
+        Sitzordnung
+    </div>
+            @if (currentCourse?.SeatLayouts?.Count > 1)
+            {
+                <select class="form-select form-select-sm"
+                        @bind="selectedLayoutId"
+                        @bind:after="OnLayoutChangedAsync">
+                    @foreach (var seatLayout in currentCourse.SeatLayouts)
+                    {
+                        <option value="@seatLayout.Id">
+                            @seatLayout.Name @(seatLayout.IsActive ? "✓" : "")
+                        </option>
+                    }
+                </select>
+            }
+    <div class="btn-group btn-group-sm" role="group">
+        <button class="btn btn-outline-primary" @onclick="DuplicateCurrentLayout" 
+                title="Aktuelles Layout duplizieren">
+            <i class="bi bi-files"></i> Duplizieren
+        </button>
+        @if (currentCourse?.SeatLayouts?.Count > 1)
+        {
+            <button class="btn btn-outline-danger" @onclick="DeleteCurrentLayout"
+                    title="Aktuelles Layout löschen">
+                <i class="bi bi-trash"></i>
+            </button>
+        }
+    </div>
+            <button class="btn @(_hasUnsavedChanges ? "btn-danger" : "btn-success") btn-sm text-start d-flex align-items-center" @onclick="SaveLayout">
+                <i class="bi bi-save me-2"></i> Layout speichern
+            </button>
+</div>
+        <div class="mt-2 p-2 border rounded bg-light small" style="font-size: 0.75rem;">
+            @_status
+        </div>
+    </div>
+</div>
+
+<style>
+    .dragging-layer {
+        filter: drop-shadow(0 5px 5px rgba(0,0,0,0.3));
+        transition: transform 0.1s ease-out;
+    }
+    </style>
+@{
+    var selectedSeats = Manager.SelectedDrawables.OfType<CanvasSeat>().ToList();
+}
+
+@if (selectedSeats.Any())
+{
+    <div class="rule-popup shadow border rounded bg-white p-2"
+         style="position: absolute; top: 10px; right: 10px; width: 300px; z-index: 1000;">
+
+        <div class="p-2 mb-2 bg-primary text-white rounded small">
+            @if (selectedSeats.Count == 1)
+            {
+                <span>👤 <b>@selectedSeats[0].OccupantName</b></span>
+            }
+            else
+            {
+                <span>👥 <b>@selectedSeats.Count Schüler</b> ausgewählt</span>
+            }
+        </div>
+        <div class="list-group list-group-flush overflow-auto" style="max-height: 450px;">
+            @foreach (var rule in activeRules)
+            {
+                <button type="button"
+                        class="list-group-item list-group-item-action py-2 px-3"
+                        @onclick="() => ExecuteRule(rule, selectedSeats)">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="fw-bold small">@rule.Name</span>
+                        <span class="badge @(rule.Points >= 0 ? "bg-success" : "bg-danger")">
+                            @(rule.Points > 0 ? "+" : "")@rule.Points
+                        </span>
+                    </div>
+                </button>
+            }
+        </div>
+        <button class="btn btn-sm btn-light w-100 mt-2 border" @onclick="() => Manager.DeselectAll()">Abbrechen</button>
+    </div>
+}
+
+<editor-card/>
+
+@code {
+    private double SchoolBias = 0; 
+    private ElementReference _svgElement;
+    private CanvasManager Manager { get; } = new();
+    private string _status = "Bereit";
+    private string ruleSetName = "Keine Regeln";
+    private School ActiveSchool = new();
+    // Computed Properties
+    private bool HasEnoughPoints => Manager.Drawables.OfType<CanvasPoint>().Count() >= 2;
+    private bool HasSelectedLine => Manager.SelectedDrawables.FirstOrDefault() is CanvasLine;
+    [Parameter] public Guid CourseId { get; set; }
+    private Course? currentCourse;
+    //private bool isDirty = false;
+    private List<Rule> activeRules = new();
+    private List<RuleOccurrence> _sessionOccurrences = new();
+    private double _courseAverage = 0;
+    private SeatLayout? CurrentLayout => currentCourse?.SeatLayouts
+       .FirstOrDefault(l => l.IsActive);
+    private Guid selectedLayoutId;
+    TeacherDto? teacher;
+    private bool _hasUnsavedChanges = false;
+    protected override async Task OnInitializedAsync()
+    {
+        Manager.DrawablesChanged += () => InvokeAsync(StateHasChanged);
+        Manager.StatusChanged += (msg) => { _status = msg; InvokeAsync(StateHasChanged); };
+        teacher = await userProvider.GetCurrentTeacherAsync();
+        if(teacher == null || teacher.ActiveSchoolId == null)
+        {
+            _status = "Fehler: Nutzer ist nicht Mitglied der Schule";
+            return;
+        }
+        ActiveSchool = await Service.GetSchoolWithIdAsync(teacher.ActiveSchoolId.Value);
+        if (CourseId != Guid.Empty)
+        {
+            currentCourse = await Service.GetCourseByIdAsync(CourseId);
+        }
+        else
+        {
+            var now = DateTime.Now.AddMinutes(10);
+            var today = now.DayOfWeek;
+            var currentTime = TimeOnly.FromDateTime(now);
+
+            var allCourses = await Service.GetCoursesWithParticipantsAsync();
+
+            currentCourse = allCourses
+                .OrderByDescending(c => c.Day == today)
+                .ThenByDescending(c => c.Day == today &&
+                                      c.StartTime.HasValue &&
+                                      currentTime >= c.StartTime.Value) // Direkter Vergleich möglich!
+                .ThenBy(c => c.StartTime.HasValue ? 0 : 1)
+                .ThenBy(c => c.StartTime)
+                .FirstOrDefault();
+        }
+        if (currentCourse != null)
+        {
+
+            if (currentCourse.RuleSetId.HasValue)
+            {
+                var ruleSet = await Service.GetRuleSetByIdAsync(currentCourse.RuleSetId.Value);
+                if (ruleSet != null)
+                {
+                    activeRules = ruleSet.Rules ?? new();
+                    ruleSetName = ruleSet.Title;
+                }
+            }
+            else
+            {
+                activeRules.Clear();
+                ruleSetName = "Keine Regeln";
+            }
+            if (currentCourse.SeatLayouts == null || !currentCourse.SeatLayouts.Any())
+            {
+                _status = "Initialisiere Standard-Sitzplan...";
+
+            }
+            await SyncParticipantsToLayout(currentCourse);
+            var activeLayout = currentCourse.SeatLayouts.FirstOrDefault(l => l.IsActive)
+                                ?? currentCourse.SeatLayouts.FirstOrDefault();
+
+            if (activeLayout != null)
+            {
+                var count = activeLayout.Seats.Count;
+                var enrollCount = currentCourse.Enrollments.Count;
+                Console.WriteLine($"Layout: {activeLayout.Name} | Sitze: {count} | Teilnehmer im Kurs: {enrollCount}");
+                foreach (var seatData in activeLayout.Seats)
+                {
+                    var participant = currentCourse.Enrollments
+                        .FirstOrDefault(e => e.Id == seatData.CourseParticipantId);
+                    if (participant != null)
+                    {
+                        var seat = new CanvasSeat(seatData, participant) { Size = 64 };
+
+                        var history = await Service.GetLastOccurrencesAsync(participant.PersonId, 10);
+                        _sessionOccurrences.AddRange(history);
+                        seat.CurrentBiasScore = ProgressiveEvaluationLogic.CalculateContinuityScore(history);
+
+                        Manager.AddDrawable(seat);
+                    }
+                    else if (seatData.CourseParticipantId == null)
+                    {
+                        var emptySeat = new CanvasSeat(seatData, null) { Size = 64 };
+                        Manager.AddDrawable(emptySeat);
+                    }
+                }
+            }
+            State.OnChange += StateHasChanged;
+            SchoolBias = ActiveSchool.GlobalRuleAverage;
+            await State.Refresh(currentCourse.Id);
+            UpdateCourseAverage();
+            ColorSeatsByBias();
+            StateHasChanged();
+            selectedLayoutId = CurrentLayout?.Id ?? Guid.Empty;
+        }
+    }
+    private async Task DuplicateCurrentLayout()
+    {
+        if (currentCourse == null || CurrentLayout == null)
+        {
+            _status = "Kein Layout zum Duplizieren vorhanden!";
+            return;
+        }
+
+        _status = "Dupliziere Layout...";
+        var newLayout = new SeatLayout
+        {
+            Id = Guid.NewGuid(),
+            CourseId = currentCourse.Id,
+            Name = $"{CurrentLayout.Name} (Kopie {DateTime.Now:HH:mm})",
+            IsActive = false,
+            Seats = new List<CanvasSeatData>()
+        };
+        foreach (var oldSeat in CurrentLayout.Seats)
+        {
+            newLayout.Seats.Add(new CanvasSeatData
+            {
+                Id = Guid.NewGuid(),
+                SeatLayoutId = newLayout.Id,
+                CourseParticipantId = oldSeat.CourseParticipantId,
+                PosX = oldSeat.PosX,
+                PosY = oldSeat.PosY
+            });
+        }
+        currentCourse.SeatLayouts.Add(newLayout);
+        try
+        {
+            await Service.SaveCourseAsync(currentCourse);
+            _status = $"✓ Layout '{newLayout.Name}' erstellt!";
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            _status = $"❌ Fehler: {ex.Message}";
+            Console.WriteLine(ex);
+        }
+    }
+
+    private async Task OnLayoutChangedAsync()
+    {
+        if (currentCourse == null || selectedLayoutId == Guid.Empty) return;
+        foreach (var seatLayout in currentCourse.SeatLayouts)
+        {
+            seatLayout.IsActive = false;
+        }
+        var selected = currentCourse.SeatLayouts.FirstOrDefault(l => l.Id == selectedLayoutId);
+        if (selected != null)
+        {
+            selected.IsActive = true;
+        }
+        try
+        {
+            await Service.SaveCourseAsync(currentCourse);
+            await ReloadCanvas();
+            _status = $"Layout '{selected?.Name}' geladen";
+        }
+        catch (Exception ex)
+        {
+            _status = $"❌ Fehler beim Wechseln: {ex.Message}";
+            Console.WriteLine(ex);
+        }
+    }
+
+    private async Task DeleteCurrentLayout()
+    {
+        if (currentCourse == null || CurrentLayout == null) return;
+
+        if (currentCourse.SeatLayouts.Count <= 1)
+        {
+            _status = "❌ Letztes Layout kann nicht gelöscht werden!";
+            return;
+        }
+
+        _status = $"Lösche '{CurrentLayout.Name}'...";
+        currentCourse.SeatLayouts.Remove(CurrentLayout);
+        var remaining = currentCourse.SeatLayouts.FirstOrDefault();
+        if (remaining != null)
+        {
+            remaining.IsActive = true;
+        }
+        await Service.SaveCourseAsync(currentCourse);
+        await ReloadCanvas();
+        _status = "✓ Layout gelöscht";
+    }
+
+    private async Task ReloadCanvas()
+    {
+        Manager.ClearAll();
+        currentCourse = await Service.GetCourseWithParticipantsAsync(currentCourse!.Id);
+
+        if (currentCourse == null) return;
+
+        var activeLayout = currentCourse.SeatLayouts.FirstOrDefault(l => l.IsActive)
+                           ?? currentCourse.SeatLayouts.FirstOrDefault();
+
+        if (activeLayout != null)
+        {
+            foreach (var seatData in activeLayout.Seats)
+            {
+                var participant = currentCourse.Enrollments
+                    .FirstOrDefault(e => e.Id == seatData.CourseParticipantId);
+
+                if (participant != null)
+                {
+                    var seat = new CanvasSeat(seatData, participant) { Size = 64 };
+                    var history = await Service.GetLastOccurrencesAsync(participant.PersonId, 10);
+                    _sessionOccurrences.AddRange(history);
+                    seat.CurrentBiasScore = ProgressiveEvaluationLogic.CalculateContinuityScore(history);
+                    Manager.AddDrawable(seat);
+                }
+                else if (seatData.CourseParticipantId == null)
+                {
+                    // Leerer Tisch
+                    var emptySeat = new CanvasSeat(seatData, null) { Size = 64 };
+                    Manager.AddDrawable(emptySeat);
+                }
+            }
+        }
+
+        UpdateCourseAverage();
+        ColorSeatsByBias();
+        StateHasChanged();
+    }
+    private async Task SaveLayout()
+    {
+        if (currentCourse != null)
+        {
+            var activeLayout = currentCourse.SeatLayouts.FirstOrDefault(l => l.IsActive)
+                               ?? currentCourse.SeatLayouts.FirstOrDefault();
+
+            if (activeLayout != null)
+            {
+                foreach (var canvasSeat in Manager.Drawables.OfType<CanvasSeat>())
+                {
+                    var data = activeLayout.Seats.FirstOrDefault(s => s.Id == canvasSeat.Data.Id);
+                    if (data != null)
+                    {
+                        data.PosX = canvasSeat.Data.PosX;
+                        data.PosY = canvasSeat.Data.PosY;
+                        data.CourseParticipantId = canvasSeat.Data.CourseParticipantId;
+                    }
+                    else
+                    {
+                        activeLayout.Seats.Add(canvasSeat.Data);
+                    }
+                }
+            }
+            _status = "Speichere in Datenbank...";
+            try
+            {
+                await Service.SaveCourseAsync(currentCourse);
+                _status = "Gespeichert um " + DateTime.Now.ToShortTimeString();
+                _hasUnsavedChanges = false;
+            }
+            catch (Exception ex)
+            {
+                _status = "Fehler beim Speichern!";
+                Console.WriteLine(ex.Message);
+            }
+        }
+    }
+    private bool IsBeingDragged(CanvasSeat d)
+    {
+        if (Manager.DragObject == null) return false;
+        if (d == Manager.DragObject) return true;
+        return Manager.DragObject.IsSelected && d.IsSelected;
+    }
+    private async Task ExecuteRule(Rule rule, List<CanvasSeat> seats)
+    {
+        foreach (var seat in seats)
+        {
+            if (seat.Participant == null)
+            {
+                continue;
+            }
+            var occurrence = new RuleOccurrence
+            {
+                PersonId = seat.Participant.PersonId,
+                CourseId = currentCourse?.Id,
+                RuleName = FormatExplanation(rule, seat.Participant.Person),
+                Points = rule.Points,
+                BiasPoints = rule.Points - teacher!.PointsBias + SchoolBias,
+                Timestamp = DateTime.Now
+            };
+            await Service.SaveOccurrenceAsync(occurrence);
+            _sessionOccurrences.Add(occurrence);
+        }
+        foreach (var seat in Manager.Drawables.OfType<CanvasSeat>())
+        {
+            if (seat.Participant?.Person == null)
+            {
+                continue;
+            }
+            var history = _sessionOccurrences
+                .Where(o => o.PersonId == seat.Participant.Person.Id)
+                .OrderByDescending(o => o.Timestamp)
+                .Take(10)
+                .ToList();
+            var pointsDebug = string.Join(", ", history.Select(h => h.Points));
+            Console.WriteLine($"History Count: {history.Count}, Points: {pointsDebug}");
+            seat.CurrentBiasScore = ProgressiveEvaluationLogic.CalculateContinuityScore(history);
+            seat.InvalidateSvgAttributes();
+        }
+        UpdateCourseAverage();
+        teacher!.PointsBias = teacher.PointsBias =_courseAverage / 55d;
+        teacher!.IsApproved = true;
+        await Service.AddTeacher(teacher);
+        Console.WriteLine($"Lehrer-Bias aktualisiert: {teacher.PointsBias:F2}");
+        ColorSeatsByBias();
+        Manager.DeselectAll();
+        StateHasChanged();
+    }
+
+    public static string FormatExplanation(Rule rule, Person p1, Person? p2 = null)
+    {
+        if (string.IsNullOrWhiteSpace(rule.ExplanationString)) return "";
+        string text = rule.ExplanationString;
+        text = text.Replace("{fullname}", $"{p1.FirstName} {p1.LastName}");
+        text = text.Replace("{name}", p1.FirstName);
+        if (rule.Type == RuleType.Timer)
+        {
+            var mins = rule.DefaultDurationMinutes?.ToString() ?? "0";
+            text = text.Replace("{minutes}", mins);
+            text = text.Replace("{dauer}", mins);
+        }
+        if (p2 != null)
+        {
+            text = text.Replace("{name2}", $"{p2.FirstName} {p2.LastName}");
+            text = text.Replace("{firstname2}", p2.FirstName);
+        }
+        return text;
+    }
+    private void ColorSeatsByBias()
+    {
+        var totalSeats = Manager.Drawables.OfType<CanvasSeat>().ToList();
+        if (!totalSeats.Any()) return;
+        var allSeats = totalSeats
+            .Where(s => s.Participant != null)
+            .ToList();
+        var scoreGroups = allSeats
+            .GroupBy(s => s.CurrentBiasScore)
+            .OrderByDescending(g => g.Key)
+            .ToList();
+        int totalGroups = scoreGroups.Count;
+        for (int i = 0; i < totalGroups; i++)
+        {
+            double relativeRank = (double)i / Math.Max(1, totalGroups - 1);
+            int tier = 7 - (int)Math.Round(relativeRank * 6);
+            foreach (var seat in scoreGroups[i])
+            {
+                seat.CurrentColorBias = tier;
+            }
+        }
+    }
+    private async Task SyncParticipantsToLayout(Course course)
+    {
+        course.SeatLayouts ??= new List<SeatLayout>();
+        var activeLayout = course.SeatLayouts.FirstOrDefault(l => l.IsActive)
+                           ?? course.SeatLayouts.FirstOrDefault();
+        if (activeLayout == null)
+        {
+            activeLayout = new SeatLayout
+            {
+                Id = Guid.Empty,
+                CourseId = course.Id,
+                Name = "Standard Layout",
+                IsActive = true,
+                Seats = new List<CanvasSeatData>()
+            };
+            course.SeatLayouts.Add(activeLayout);
+        }
+        var seatedParticipantIds = activeLayout.Seats
+            .Where(s => s.CourseParticipantId.HasValue)
+            .Select(s => s.CourseParticipantId.Value)
+            .ToHashSet();
+        var missingEnrollments = course.Enrollments
+            .Where(e => !seatedParticipantIds.Contains(e.Id))
+            .ToList();
+        if (missingEnrollments.Any())
+        {
+            int nextY = activeLayout.Seats.Any() ? activeLayout.Seats.Max(s => s.PosY) + 100 : 100;
+            int startX = 100;
+
+            foreach (var enrollment in missingEnrollments)
+            {
+                activeLayout.Seats.Add(new CanvasSeatData
+                {
+                    Id = Guid.NewGuid(),
+                    SeatLayoutId = activeLayout.Id,
+                    CourseParticipantId = enrollment.Id,
+                    PosX = startX,
+                    PosY = nextY
+                });
+
+                startX += 100;
+                if (startX > 800) { startX = 100; nextY += 100; }
+            }
+        }
+    }
+    public static Dictionary<Guid, double> CalculateBiasFromRawScores(Dictionary<Guid, double> studentScores)
+    {
+        if (!studentScores.Any()) return new();
+        double average = studentScores.Values.Average();
+        double sumOfSquares = studentScores.Values.Sum(s => Math.Pow(s - average, 2));
+        double stdDev = Math.Sqrt(sumOfSquares / studentScores.Count);
+        return studentScores.ToDictionary(
+            kvp => kvp.Key,
+            kvp => stdDev > 0.1 ? (kvp.Value - average) / stdDev : 0
+        );
+    }
+    private void UpdateCourseAverage()
+    {
+        var seats = Manager.Drawables.OfType<CanvasSeat>().ToList();
+        _courseAverage = seats.Any() ? seats.Average(s => s.CurrentBiasScore) : 0;
+    }
+    private async void NewSeat()
+    {
+        if (currentCourse == null) return;
+        await Service.SaveCourseAsync(currentCourse);
+    }
+    private void OnSvgMouseMove(PointerEventArgs e)
+    {
+        if (Manager.DragObject == null) return;
+        int dx = (int)(e.OffsetX - Manager.Lmp.X);
+        int dy = (int)(e.OffsetY - Manager.Lmp.Y);
+        if (Manager.DragObject.IsSelected)
+        {
+            foreach (var selected in Manager.SelectedDrawables)
+            {
+                selected.MoveBy(dx, dy, null);
+            }
+        }
+        else
+        {
+            Manager.DragObject.MoveBy(dx, dy, null);
+        }
+        Manager._constraintManager.ApplyAllConstraints();
+        Manager.Lmp.X = (float)e.OffsetX;
+        Manager.Lmp.Y = (float)e.OffsetY;
+    }
+    private void OnSvgMouseDown(PointerEventArgs e)
+    {
+        Manager.DeselectAll();
+    }
+    private void OnSvgMouseUp(PointerEventArgs e)
+    {
+        if(Manager.DragObject == null)
+            return;
+        Manager.DragObject.isDragging = false;
+        foreach (var selected in Manager.SelectedDrawables)
+        {
+            selected.MoveBy(0, 0, Manager.Grid);
+        }
+        Manager._constraintManager.ApplyAllConstraints();
+        Manager.DragObject = null;
+        _hasUnsavedChanges = true;
+    }
+    private async Task AddRect()
+    {
+        if (currentCourse == null || CurrentLayout == null) return;
+        CurrentLayout.Seats.Add(new CanvasSeatData
+        {
+            Id = Guid.NewGuid(),
+            SeatLayoutId = CurrentLayout!.Id,
+            CourseParticipantId = null,
+            PosX = 200,
+            PosY = 200
+        });
+        await Service.SaveCourseAsync(currentCourse);
+        await ReloadCanvas();
+    }
+    // === TOOLBAR ACTIONS ===
+    private void AddPoint() => Manager.AddRandomPoint();
+    private void AddLine()
+    {
+        var points = Manager.Drawables.OfType<CanvasPoint>().Take(2).ToList();
+        if (points.Count == 2)
+        {
+            Manager.AddDrawable(new CanvasLine
+            {
+                Start = points[0],
+                End = points[1],
+                Color = "gray"
+            });
+        }
+    }
+    private async Task Clear()
+    {
+        if (currentCourse == null || CurrentLayout == null) return;
+        CurrentLayout.Seats.RemoveAll(seat => seat.CourseParticipantId == null);
+        await Service.SaveCourseAsync(currentCourse);
+        await ReloadCanvas();
+    }
+    private void SelectAllSeats(MouseEventArgs args)
+    {
+        foreach(var drawable in Manager.Drawables.ToList())
+        {
+            drawable.Select();
+        }
+    }
+}

@@ -1,0 +1,333 @@
+﻿@page "/schools"
+@using CourseManager.Data
+@using Microsoft.AspNetCore.Identity
+@inject IStudentService Service
+@inject AuthenticationStateProvider AuthProvider
+
+<PageTitle>Schulverwaltung</PageTitle>
+
+<div class="container mt-4">
+    @* DEBUG INFO *@
+    <div class="alert alert-secondary small py-1">
+        Debug: Lehrer geladen: @(CurrentTeacher != null)| Schulen: @AllSchools.Count | TeacherSchule: @CurrentTeacher?.ActiveSchoolId
+    </div>
+
+    @if (CurrentTeacher == null)
+    {
+        <div class="d-flex justify-content-center">
+            <div class="spinner-border text-primary" role="status"></div>
+            <span class="ms-2">Lade Profildaten...</span>
+        </div>
+    }
+    else if (CurrentTeacher.ActiveSchoolId != null && CurrentTeacher.IsApproved)
+    {
+        var mySchool = AllSchools.FirstOrDefault(s => s.Id == CurrentTeacher.ActiveSchoolId);
+
+        <div class="card border-success shadow-sm">
+            <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+                <span>Deine aktive Schule</span>
+                <div>
+                    @if (CurrentTeacher.IsAdmin)
+                    {
+                        <span class="badge bg-danger me-2"><i class="bi bi-crown"></i> Admin</span>
+                    }
+                    <span class="badge bg-light text-success">Verifiziert</span>
+                </div>
+            </div>
+            <div class="card-body">
+                <h3>@(mySchool?.Name ?? "Name wird geladen...")</h3>
+                <p class="text-muted"><i class="bi bi-geo-alt"></i> @(mySchool?.Address ?? "Keine Adresse hinterlegt")</p>
+                <hr />
+                <div class="alert alert-info py-2">
+                    <i class="bi bi-graph-up"></i> Globaler Rule-Durchschnitt:
+                    <strong>@(mySchool?.GlobalRuleAverage.ToString("F2") ?? "0.00")</strong>
+                </div>
+                <button class="btn btn-outline-danger btn-sm" @onclick="CancelRequest">Schule verlassen</button>
+            </div>
+        </div>
+    }
+    else if (CurrentTeacher.ActiveSchoolId != null && !CurrentTeacher.IsApproved)
+    {
+        <div class="alert alert-warning shadow">
+            <h4><i class="bi bi-hourglass-split"></i> Anfrage gesendet!</h4>
+            <p>
+                Du hast den Beitritt zur Schule <strong>@TargetSchoolName</strong> beantragt.
+                Warte auf Freischaltung durch einen Admin.
+            </p>
+            <button class="btn btn-outline-danger btn-sm" @onclick="CancelRequest">Anfrage zurückziehen</button>
+        </div>
+    }
+    else
+    {
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2>Finde deine Schule</h2>
+            <button class="btn btn-primary" @onclick="CreateNewSchool">
+                <i class="bi bi-plus-circle"></i> Neue Schule gründen
+            </button>
+        </div>
+
+        <div class="mb-4">
+            <input @bind="SearchTerm" @bind:event="oninput" class="form-control" placeholder="Schulname suchen..." />
+        </div>
+
+        <table class="table table-hover shadow-sm">
+            <thead class="table-light">
+                <tr>
+                    <th>Name</th>
+                    <th>Ort</th>
+                    <th class="text-end">Aktion</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var school in FilteredSchools)
+                {
+                    <tr>
+                        <td class="fw-bold">@school.Name</td>
+                        <td>@school.Address</td>
+                        <td class="text-end">
+                            <button class="btn btn-success btn-sm" @onclick="() => JoinSchool(school)">Beitreten</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</div>
+@if (CurrentTeacher?.IsAdmin == true)
+{
+    <div class="mt-5 border-top pt-4">
+        <h5 class="text-danger mb-4"><i class="bi bi-shield-lock"></i> Schuladministration: @TargetSchoolName</h5>
+
+        @* --- SEKTION 1: ANFRAGEN --- *@
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-warning text-dark fw-bold">
+                <i class="bi bi-person-plus"></i> Offene Beitrittsanfragen (@PendingTeachers.Count)
+            </div>
+            <div class="card-body p-0">
+                @if (!PendingTeachers.Any())
+                {
+                    <p class="text-muted p-3 mb-0">Keine neuen Anfragen.</p>
+                }
+                else
+                {
+                    <table class="table table-hover align-middle mb-0">
+                        <tbody class="border-top-0">
+                            @foreach (var t in PendingTeachers)
+                            {
+                                <tr>
+                                    <td class="ps-3"><strong>@t.FirstName @t.LastName</strong></td>
+                                    <td class="text-end pe-3">
+                                        <button class="btn btn-success btn-sm me-1" @onclick="() => ApproveTeacher(t)">Aufnehmen</button>
+                                        <button class="btn btn-outline-danger btn-sm" @onclick="() => KickTeacher(t)">Abweisen</button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            </div>
+        </div>
+
+        @* --- SEKTION 2: KOLLEGIUM --- *@
+        <div class="card shadow-sm">
+            <div class="card-header bg-dark text-white fw-bold">
+                <i class="bi bi-people"></i> Kollegium verwalten (@ApprovedTeachers.Count)
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="ps-3">Name</th>
+                            <th>Rolle</th>
+                            <th class="text-end pe-3">Aktionen</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var t in ApprovedTeachers)
+                        {
+                            <tr>
+                                <td class="ps-3">
+                                    @t.FirstName @t.LastName
+                                    @if (t.Id == CurrentTeacher.Id)
+                                    {
+                                        <span class="badge bg-secondary ms-1">Du</span>
+                                    }
+                                </td>
+                                <td>
+                                    @if (t.IsAdmin)
+                                    {
+                                        <span class="badge bg-danger">Admin:na</span>
+                                    }
+                                    else
+                                    {
+
+                                        <span class="badge bg-info text-dark">Lehrkraft:in</span>
+                                    }
+                                </td>
+                                <td class="text-end pe-3">
+                                    @if (t.Id != CurrentTeacher.Id) @* Man kann sich nicht selbst kicken/befördern *@
+                                    {
+                                        @if (!t.IsAdmin)
+                                        {
+                                            <button class="btn btn-outline-primary btn-sm me-1" @onclick="() => PromoteTeacher(t)" title="Zum Admin machen">
+                                                <i class="bi bi-arrow-up-circle"></i>
+                                            </button>
+                                        }
+                                        <button class="btn btn-outline-danger btn-sm" @onclick="() => KickTeacher(t)" title="Aus Schule entfernen">
+                                            <i class="bi bi-person-x"></i> Kicken
+                                        </button>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+}
+@if (ShowCreateModal)
+{
+    <div class="modal fade show d-block" style="background: rgba(0,0,0,0.5);" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title">Neue Schule gründen</h5>
+                    <button type="button" class="btn-close" @onclick="() => ShowCreateModal = false"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Schulname</label>
+                        <input @bind="NewSchoolName" class="form-control" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Adresse</label>
+                        <input @bind="NewSchoolAddress" class="form-control" />
+                    </div>
+                    @if (!string.IsNullOrEmpty(ErrorMessage))
+                    {
+                        <div class="alert alert-danger">@ErrorMessage</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="() => ShowCreateModal = false">Abbrechen</button>
+                    <button class="btn btn-primary" @onclick="HandleCreateSchool">Gründen & Beitreten</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private TeacherDto? CurrentTeacher;
+    private List<School> AllSchools = new();
+    private string SearchTerm = "";
+    private string? TargetSchoolName;
+    private List<TeacherDto> PendingTeachers = new();
+    private List<TeacherDto> ApprovedTeachers = new();
+    private IEnumerable<School> FilteredSchools => AllSchools
+        .Where(s => string.IsNullOrWhiteSpace(SearchTerm) ||
+                    s.Name.Contains(SearchTerm, StringComparison.OrdinalIgnoreCase));
+
+    protected override async Task OnInitializedAsync() => await LoadData();
+
+    private async Task LoadData()
+    {
+        AllSchools = await Service.GetAllSchoolsGlobalAsync();
+        var authState = await AuthProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        if (user.Identity?.IsAuthenticated == true)
+        {
+            var teachers = await Service.GetTeachersAsync();
+            var userId = user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            CurrentTeacher = teachers.FirstOrDefault(t => t.Id.ToString() == userId);
+            Console.WriteLine($"[DEBUG] Aktueller Lehrer: {CurrentTeacher?.Id} - {CurrentTeacher?.ActiveSchoolId} - Approved: {CurrentTeacher?.IsApproved}");
+            //CurrentTeacher.IsApproved = true;
+        }
+
+        if (CurrentTeacher?.ActiveSchoolId != null)
+        {
+            TargetSchoolName = AllSchools.FirstOrDefault(s => s.Id == CurrentTeacher.ActiveSchoolId)?.Name;
+        }
+        StateHasChanged();
+        if (CurrentTeacher?.IsAdmin == true)
+        {
+            var allTeachers = await Service.GetTeachersAsync();
+            var mySchoolId = CurrentTeacher.ActiveSchoolId;
+
+            // 1. Die Warteliste
+            PendingTeachers = allTeachers
+                .Where(t => t.ActiveSchoolId == mySchoolId && !t.IsApproved)
+                .ToList();
+
+            // 2. Das feste Team
+            ApprovedTeachers = allTeachers
+                .Where(t => t.ActiveSchoolId == mySchoolId && t.IsApproved)
+                .ToList();
+        }
+    }
+
+    private async Task JoinSchool(School school)
+    {
+        if (CurrentTeacher == null) return;
+        CurrentTeacher.ActiveSchoolId = school.Id;
+        CurrentTeacher.IsApproved = false;
+        await Service.AddTeacher(CurrentTeacher);
+        await LoadData();
+    }
+
+    private async Task CancelRequest()
+    {
+        if (CurrentTeacher == null) return;
+        CurrentTeacher.ActiveSchoolId = null;
+        CurrentTeacher.IsApproved = false;
+        CurrentTeacher.IsAdmin = false;
+        await Service.AddTeacher(CurrentTeacher);
+        await LoadData();
+    }
+
+    private bool ShowCreateModal = false;
+    private string NewSchoolName = "";
+    private string NewSchoolAddress = "";
+    private string ErrorMessage = "";
+
+    private void CreateNewSchool() { ErrorMessage = ""; ShowCreateModal = true; }
+
+    private async Task HandleCreateSchool()
+    {
+        if (string.IsNullOrWhiteSpace(NewSchoolName)) { ErrorMessage = "Name fehlt."; return; }
+
+        try
+        {
+            await Service.CreateSchoolAsync(CurrentTeacher!.Id, NewSchoolName, NewSchoolAddress);
+            ShowCreateModal = false;
+            await LoadData();
+        }
+        catch (Exception ex) { ErrorMessage = ex.Message; }
+    }
+    private async Task ApproveTeacher(TeacherDto t)
+    {
+        t.IsApproved = true;
+        await Service.AddTeacher(t);
+        await LoadData();
+    }
+
+    private async Task PromoteTeacher(TeacherDto t)
+    {
+        t.IsAdmin = true;
+        await Service.AddTeacher(t);
+        await LoadData();
+    }
+
+    private async Task KickTeacher(TeacherDto t)
+    {
+        // Alle Schul-Verbindungen löschen
+        t.ActiveSchoolId = null;
+        t.IsApproved = false;
+        t.IsAdmin = false;
+
+        await Service.AddTeacher(t);
+        await LoadData();
+    }
+}

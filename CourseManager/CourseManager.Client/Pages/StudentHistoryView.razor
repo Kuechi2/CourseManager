@@ -1,0 +1,362 @@
+﻿@page "/student-hero-stats"
+@attribute [Authorize]
+@using CourseManager.Data
+@inject IStudentService Service
+<div class="hero-container">
+    <aside class="sidebar">
+        <div class="search-box">
+            <input @bind="searchTerm" @bind:event="oninput" placeholder="Schüler suchen..." class="form-control" />
+        </div>
+        <ul class="student-list">
+            @foreach (var student in FilteredStudents)
+            {
+                <li class="@(selectedStudent?.Id == student.Id ? "active" : "")"
+                    @onclick="() => SelectStudent(student)">
+                    @student.FirstName
+                    <span class="badge rounded-pill @GetTrendColor(student.Id)">
+                        @GetTrendEmoji(student.Id)
+                    </span>
+                </li>
+            }
+        </ul>
+    </aside>
+
+    <main class="content">
+        @if (selectedStudent != null)
+        {
+            <header class="header">
+                <h1><span class="strikethrough">Misse</span>Heldentaten für @selectedStudent.FirstName</h1>
+
+                <div class="date-picker-row">
+                    <input type="date" @bind="startDate" class="form-control" />
+                    <span>bis</span>
+                    <input type="date" @bind="endDate" class="form-control" />
+                    <button class="btn btn-refresh" @onclick="@(() => LoadData())">Laden</button>
+                </div>
+            </header>
+
+            <div class="stats-grid">
+                <section class="badges-section card shadow-sm">
+                    <h3>🏆 Deine Abzeichen</h3>
+                    <div class="badge-gallery">
+                        @foreach (var badge in EarnedBadges)
+                        {
+                            <div class="badge-item" title="@badge.Description">
+                                <span class="badge-icon">@badge.Icon</span>
+                                <span class="badge-name">@badge.Name</span>
+                            </div>
+                        }
+                    </div>
+                </section>
+
+                <section class="history-section card shadow-sm">
+                    <h3>📜 Die Chronik</h3>
+                    <div class="timeline">
+                        @foreach (var occ in Occurrences)
+                        {
+                            <div class="timeline-item @(occ.Points >= 0 ? "pos" : "neg")">
+                                <span class="date">@occ.Timestamp.ToString("dd.MM. HH:mm")</span>
+                                <span class="rule-name">@occ.RuleName</span>
+                                <span class="points">@(occ.Points > 0 ? "+" : "")@occ.Points</span>
+                            </div>
+                        }
+                    </div>
+                    <div class="total-footer d-flex flex-column gap-1 p-2 border-top bg-light">
+                        <div class="d-flex justify-content-between" style="max-width: 300px;">
+                            <span class="fw-bold">Gesamtpunktzahl:</span>
+                            <span>@Occurrences.Sum(o => o.Points) Punkte</span>
+                        </div>
+                        <div class="d-flex justify-content-between text-muted" style="max-width: 300px;">
+                            <span class="fw-bold">DeBiased:</span>
+                            <span class="font-monospace">@Occurrences.Sum(o => o.BiasPoints).ToString("F2") Punkte</span>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        }
+        else
+        {
+            <div class="empty-state">
+                <p>Wähle links einen Helden aus, um seine Taten zu bewundern!</p>
+            </div>
+        }
+    </main>
+</div>
+
+<style>
+    .hero-container {
+        display: flex;
+        height: 90vh;
+        gap: 20px;
+        font-family: 'Comic Sans MS', cursive, sans-serif;
+    }
+
+    .sidebar {
+        width: 250px;
+        min-width: 250px; /* Zusätzliche Sicherheit */
+        flex-shrink: 0;
+        background: #f8f9fa;
+        border-radius: 10px;
+        padding: 10px;
+        border: 2px solid #dee2e6;
+    }
+
+    .strikethrough {
+        text-decoration: line-through;
+        color: #ff4757;
+        font-size: 0.9em;
+        rotate: 30deg;
+    }
+
+    .student-list {
+        list-style: none;
+        padding: 0;
+        margin-top: 15px;
+    }
+
+        .student-list li {
+            padding: 10px;
+            cursor: pointer;
+            border-radius: 5px;
+            margin-bottom: 5px;
+            transition: all 0.2s;
+            background: white;
+            border: 1px solid #eee;
+        }
+
+            .student-list li:hover {
+                background: #e1f5fe;
+                transform: scale(1.05);
+            }
+
+            .student-list li.active {
+                background: #3366ff;
+                color: white;
+                font-weight: bold;
+            }
+
+    .stats-grid {
+        display: grid;
+        grid-template-columns: 1fr 2fr;
+        gap: 20px;
+        margin-top: 20px;
+    }
+
+    .badge-gallery {
+        display: flex;
+        background: #000055;
+        flex-wrap: wrap;
+        gap: 25px; /* Mehr Abstand zwischen den Medaillen */
+        padding: 20px;
+        justify-content: center;
+        border-radius: 15px;
+        border: 2px solid #3366ff;
+    }
+
+    .badge-item {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center; /* Zentriert Inhalt vertikal */
+        background: #fff9c4;
+        padding: 10px;
+        border-radius: 50%;
+        width: 110px; /* Etwas größer, damit Text Platz hat */
+        height: 110px; /* Etwas größer */
+        border: 5px groove #fbc02d;
+        text-align: center;
+        position: relative;
+        transition: transform 0.2s;
+    }
+
+        .badge-item:hover {
+            transform: scale(1.1); /* Kleiner Effekt beim Drüberfahren */
+        }
+
+    .badge-icon {
+        font-size: 3em; /* Etwas kleiner als 4em, damit Name drunter passt */
+        line-height: 1;
+    }
+
+    .badge-name {
+        color: #000055; /* Dunkelblau auf Gelb ist super lesbar */
+        font-weight: bold;
+        font-size: 0.8em;
+        margin-top: 5px;
+        line-height: 1.1;
+        max-width: 90%; /* Verhindert, dass Text aus dem Kreis bricht */
+    }
+
+    .timeline-item {
+        display: flex;
+        justify-content: space-between;
+        padding: 8px;
+        margin-bottom: 5px;
+        border-radius: 5px;
+        border-left: 5px solid gray;
+    }
+
+        .timeline-item.pos {
+            background: #e8f5e9;
+            border-left-color: #4caf50;
+        }
+
+        .timeline-item.neg {
+            background: #ffebee;
+            border-left-color: #f44336;
+        }
+
+    .btn-refresh {
+        background: #6c5ce7;
+        color: white;
+        border-radius: 20px;
+    }
+</style>
+@code {
+    [Parameter] public Course CurrentCourse { get; set; } = new();
+
+    private string searchTerm = "";
+    private DateTime startDate = DateTime.Today.AddDays(-14);
+    private DateTime endDate = DateTime.Today;
+    private Person? selectedStudent;
+    private List<RuleOccurrence> Occurrences = new();
+    private Dictionary<Guid, double> StudentTrends = new();
+    private List<CourseParticipant> allEnrollments = new();
+    // Diese Property steuert jetzt die Anzeige links
+    private IEnumerable<Person> FilteredStudents =>
+        string.IsNullOrWhiteSpace(searchTerm)
+            ? allEnrollments.Select(e => e.Person)
+            : allEnrollments
+                .Where(e => e.Person.FullName.Contains(searchTerm, StringComparison.OrdinalIgnoreCase))
+                .Select(e => e.Person);
+    public record Badge(string Name, string Icon, string Description);
+    protected override async Task OnInitializedAsync()
+    {
+        var courses = await Service.GetCoursesWithParticipantsAsync();
+        if (courses.Any())
+        {
+            foreach (var CurrentCourse in courses)
+            {
+                //CurrentCourse = courses.First();
+                foreach (var enrollment in CurrentCourse.Enrollments)
+                {
+                    if (!allEnrollments.Any(e => e.Person.Id == enrollment.Person.Id))
+                        allEnrollments.Add(enrollment);
+                    var history = await Service.GetOccurrencesByDateAsync(enrollment.Person.Id, DateTime.Today.AddMonths(-1), DateTime.Today);
+                    StudentTrends[enrollment.Person.Id] = CalculateTrend(history);
+                }
+            }
+        }
+    }
+    private async Task SelectStudent(Person person)
+    {
+        selectedStudent = person;
+        await LoadData(); // Ruft die Daten ohne Umwege ab
+    }
+
+    // Mache LoadData unabhängig von MouseEventArgs
+    private async Task LoadData()
+    {
+        if (selectedStudent == null) return;
+        Occurrences = await Service.GetOccurrencesByDateAsync(selectedStudent.Id, startDate, endDate);
+        StateHasChanged();
+    }
+    private string GetTrendEmoji(Guid studentId) => StudentTrends.GetValueOrDefault(studentId) switch
+    {
+        > 0.1 => "📈",
+        < -0.1 => "📉",
+        _ => "➡️"
+    };
+
+    private string GetTrendColor(Guid studentId) => StudentTrends.GetValueOrDefault(studentId) switch
+    {
+        > 0.1 => "bg-success",
+        < -0.1 => "bg-danger",
+        _ => "bg-secondary"
+    };
+
+    // Damit der Button im HTML funktioniert
+    private async Task LoadData(MouseEventArgs args) => await LoadData();
+
+    private List<Badge> EarnedBadges => GetBadges(Occurrences);
+
+    // Hier deine Badge-Logik (wie gehabt)
+    private List<Badge> GetBadges(List<RuleOccurrence> data)
+    {
+
+        int maxStreak = GetMaxStreak(data);
+        var badges = new List<Badge>();
+        var trend = CalculateTrend(data);
+        var streak = data.TakeWhile(o => o.Points > 0).Count();
+        if (trend > 0.4 && streak > 3)
+        {
+            badges.Add(new Badge("Trendsetter", "🚀", "Deine Leistungen zeigen steil nach oben!"));
+        }
+        if (data == null || !data.Any()) return badges;
+        if (maxStreak >= 8) badges.Add(new Badge("Marathon", "🏃", $"Wahnsinn! {maxStreak} Heldentaten in Folge!"));
+        string heart = GetStreakEmoji(streak);
+        if (streak >= 1) badges.Add(new Badge($"{streak}er Lauf", heart, $"Du hast {streak} Taten ohne Fehltritt geschafft!"));
+        if (HasRecovered(data)) badges.Add(new Badge("Phönix", "🔥", "Nach Ärger wieder gut Mitgezogen"));
+        return badges;
+    }
+    private int GetMaxStreak(List<RuleOccurrence> data)
+    {
+        int maxStreak = 0;
+        int currentStreak = 0;
+        foreach (var occ in data.OrderBy(o => o.Timestamp))
+        {
+
+            if (occ.Points > 0)
+            {
+                currentStreak++;
+                if (currentStreak > maxStreak) maxStreak = currentStreak;
+            }
+            else if (occ.Points < 0)
+            {
+                currentStreak = 0;
+            }
+        }
+        return maxStreak;
+    }
+    private bool HasRecovered(List<RuleOccurrence> data)
+    {
+        var lastNegativeIndex = data.FindIndex(o => o.Points < 0);
+        return lastNegativeIndex > 2;
+    }
+    private double CalculateTrend(IEnumerable<RuleOccurrence> data)
+    {
+        if (data == null || !data.Any()) return 0;
+        var relevantData = data.OrderByDescending(o => o.Timestamp).Take(13).ToList();
+        if (relevantData.Count < 3) return 0;
+        var presentAvg = relevantData.Take(3).Average(o => (double)o.Points);
+        var pastItems = relevantData.Skip(3).ToList();
+
+        if (!pastItems.Any())
+        {
+            return presentAvg - relevantData.Last().Points;
+        }
+        var pastAvg = pastItems.Average(o => (double)o.Points);
+        return presentAvg - pastAvg;
+    }
+    private string GetStreakEmoji(int streak)
+    {
+        if (streak <= 0) return "";
+
+        // Deine Wunsch-Reihenfolge (von klein nach groß)
+        string[] heartLevels = {
+        "❤",  // Level 1
+        "🧡",  // Level 2
+        "💛",  // Level 3
+        "💚",  // Level 4
+        "🩵",  // Level 5 (Light Blue)
+        "💙",  // Level 6
+        "🩷"   // Level 7 (Pink / Supreme)
+    };
+
+        // Wir nehmen den Streak-Wert -1 für den Index (da 0-basiert)
+        // Wenn der Streak größer ist als die Liste, bleiben wir beim letzten (Pink)
+        int index = Math.Min(streak - 1, heartLevels.Length - 1);
+
+        return heartLevels[index];
+    }
+}

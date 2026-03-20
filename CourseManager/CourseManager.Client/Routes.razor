@@ -1,0 +1,15 @@
+﻿<CascadingAuthenticationState>
+    @* <-- 1. Die "Informations-Wolke" *@
+    <Router AppAssembly="@typeof(Program).Assembly">
+        <Found Context="routeData">
+            @* 2. AuthorizeRouteView statt RouteView! *@
+            <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(Layout.MainLayout)">
+                <NotAuthorized>
+                    @* Hier landet Lord K., wenn er nicht eingeloggt ist *@
+                    <p>Halt! Erst einloggen.</p>
+                </NotAuthorized>
+            </AuthorizeRouteView>
+            <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+        </Found>
+    </Router>
+</CascadingAuthenticationState>

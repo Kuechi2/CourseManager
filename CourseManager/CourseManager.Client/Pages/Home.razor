@@ -1,0 +1,82 @@
+﻿@page "/"
+@using Microsoft.AspNetCore.Components.Authorization
+
+<PageTitle>CourseManager - Dashboard</PageTitle>
+
+<div class="container mt-4">
+    <AuthorizeView>
+        @* --- WAS EINGELOGGTE LEHRER SEHEN --- *@
+        <Authorized>
+            <div class="p-5 mb-4 bg-light rounded-3 shadow-sm">
+                <div class="container-fluid py-2">
+                    <h1 class="display-5 fw-bold">Willkommen zurück, @context.User.Identity?.Name!</h1>
+                    <p class="col-md-8 fs-4">Bereit für den Unterricht? Hier ist der Überblick über deine Kurse und Schüler.</p>
+                </div>
+            </div>
+
+            <div class="row g-4">
+                <div class="col-md-4">
+                    <div class="card h-100 border-primary shadow-sm">
+                        <div class="card-body text-center">
+                            <i class="bi bi-people-fill fs-1 text-primary"></i>
+                            <h5 class="card-title mt-2">Schülerverwaltung</h5>
+                            <p class="card-text">Verwalte deine Klassen und behalte den Überblick über die Anwesenheit.</p>
+                            <a href="/studentdata" class="btn btn-outline-primary">Zu den Schülern</a>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-4">
+                    <div class="card h-100 border-success shadow-sm">
+                        <div class="card-body text-center">
+                            <i class="bi bi-book-half fs-1 text-success"></i>
+                            <h5 class="card-title mt-2">Kursplanung</h5>
+                            <p class="card-text">Plane neue Module oder bearbeite bestehende Kursinhalte.</p>
+                            <a href="/manage-courses" class="btn btn-outline-success">Meine Kurse</a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-4">
+                    <div class="card h-100 border-info shadow-sm">
+                        <div class="card-body text-center">
+                            <i class="bi bi-star-fill fs-1 text-info"></i>
+                            <h5 class="card-title mt-2">Supreme Features</h5>
+                            <p class="card-text">Greife auf Premium-Statistiken und KI-Analysen zu.</p>
+                            <button class="btn btn-info text-white">Jetzt upgraden</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </Authorized>
+
+        @* --- WAS GÄSTE SEHEN --- *@
+        <NotAuthorized>
+            <div class="text-center py-5">
+                <img src="logo.png" alt="Logo" style="width: 150px;" class="mb-4" />
+                <h1 class="display-3 fw-bold text-primary">Clapo</h1>
+                <p class="lead mb-4">Die moderne Lösung für drakonische Bildungseinrichtungen.</p>
+                
+                <div class="d-grid gap-2 d-sm-flex justify-content-sm-center">
+                    <a href="/Login" class="btn btn-primary btn-lg px-4 gap-3">Jetzt einloggen</a>
+                    <a href="/newuser" class="btn btn-outline-secondary btn-lg px-4">Account erstellen</a>
+                </div>
+
+                <div class="mt-5 row">
+                    <div class="col-md-4">
+                        <h4>Effizient</h4>
+                        <p>Werde Herr der Lage mit wirkungsvollen Strafen und Sanktionen.</p>
+                    </div>
+                    <div class="col-md-4">
+                        <h4>Sicher</h4>
+                        <p>Die Eltern sind aussen vor und bekommen von deiner sadistischen Ader nix mit.</p>
+                    </div>
+                    <div class="col-md-4">
+                        <h4>Mobil</h4>
+                        <p>Nutze den Clapo überall, sogar wenn du deine Schüler zufällig im Kino triffst.</p>
+                    </div>
+                </div>
+            </div>
+        </NotAuthorized>
+    </AuthorizeView>
+</div>

@@ -1,0 +1,97 @@
+﻿@inject AssignmentService State
+
+<div class="assignment-sidebar p-1 border-end bg-light h-100">
+    <h5>Aufgabenverwaltung</h5>
+
+    <div class="d-flex flex-column gap-2 mb-2">
+        <select class="form-select form-select-sm"
+                value="@State.SelectedAssignment?.Id"
+                @onchange="OnAssignmentChanged">
+            <option value="">-- Aufgabe wählen --</option>
+            @foreach (var ass in State.Assignments)
+            {
+                <option value="@ass.Id">@ass.Title</option>
+            }
+        </select>
+        @if (State.SelectedAssignment != null)
+        {
+            <button class="btn btn-outline-danger btn-sm"
+                    @onclick="() => State.DeleteAssignment(State.SelectedAssignment.Id)">
+                <i class="bi bi-trash"></i>
+            </button>
+        }
+        <button class="btn btn-outline-primary btn-sm" @onclick="OpenCreateModal">
+            <i class="bi bi-plus-circle me-2"></i> Neue Aufgabe
+        </button>
+    </div>
+</div>
+
+@code {
+    private bool _showAssignmentModal  = false;
+    private string _newAssignmentTitle = "";
+    private DateTime _newAssignmentDueDate = DateTime.Now.AddDays(7);
+    protected override async Task OnInitializedAsync()
+    {
+        State.OnChange += StateHasChanged;
+    }
+    private void OnAssignmentChanged(ChangeEventArgs e)
+    {
+        if (Guid.TryParse(e.Value?.ToString(), out var id))
+            State.SelectedAssignment = State.Assignments.FirstOrDefault(a => a.Id == id);
+        else
+            State.SelectedAssignment = null;
+    }
+
+    private void OpenCreateModal()
+    {
+        _showAssignmentModal = true;
+         _newAssignmentTitle = "";
+        _newAssignmentDueDate = DateTime.Now.AddDays(7);
+    }
+    public void Dispose() => State.OnChange -= StateHasChanged;
+}
+@if (_showAssignmentModal)
+{
+    <div class="modal fade show d-block" style="background: rgba(0,0,0,0.5)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header"><h5>Neue Aufgabe erstellen</h5></div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="small fw-bold text-muted">Aufgabenstellung</label>
+                        <input class="form-control" @bind="_newAssignmentTitle" placeholder="z.B. Portfolio abgeben" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="small fw-bold text-muted">Abgabetermin</label>
+                        @* Das 'date' Input-Feld binden wir direkt an das vorhandene DueDate *@
+                        <input type="date" class="form-control" @bind="_newAssignmentDueDate" />
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="() => _showAssignmentModal = false">Abbrechen</button>
+                    <button class="btn btn-primary" @onclick="CreateNewAssignment">Speichern</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private async Task CreateNewAssignment()
+    {
+        if (string.IsNullOrWhiteSpace(_newAssignmentTitle)) return;
+
+        try
+        {
+            await State.CreateAssignment(_newAssignmentTitle, _newAssignmentDueDate);
+            _newAssignmentTitle = "";
+            _showAssignmentModal = false;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Fehler beim Speichern: {ex.Message}");
+        }
+    }
+
+}

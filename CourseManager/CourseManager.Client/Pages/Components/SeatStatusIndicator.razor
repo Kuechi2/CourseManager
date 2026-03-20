@@ -1,0 +1,101 @@
+﻿@using CourseManager.Data
+@inject AssignmentService State
+<g transform="translate(@Seat.Data.PosX, @Seat.Data.PosY)">
+    <g @onclick="HandleSeatClick" style="cursor: pointer;">
+        @if (ActiveAssignment != null)
+        {
+            @* Hintergrund-Rechteck *@
+            <rect x="-32" y="-32" width="64" height="64"
+                  fill="rgba(100,100,255,0.1)" rx="5"
+                  stroke="#6464ff" stroke-width="1" />
+
+            @* Status-Punkt *@
+            <circle cx="22" cy="22" r="12" fill="@StatusColor" />
+
+            @if (IsCompleted)
+            {
+                <path d="M 13 22 l 5 5 l 10 -10" stroke="white" stroke-width="3" fill="none" />
+            }
+        }
+    </g>
+
+    @if (HasAnyOpenAssignments)
+    {
+        <g @onclick="HandleInfoClick" @onclick:stopPropagation="true" style="cursor:pointer;">
+            <circle cx="-22" cy="-22" r="7" fill="#ffc107" stroke="black" stroke-width="1" />
+            <svg>
+                <text x="-22" y="-18" font-size="12" text-anchor="middle"
+                      fill="black" font-weight="bold" style="pointer-events:none;">!</text>
+            </svg>
+        </g>
+    }
+</g>
+@if (_isPopupOpen)
+{
+    <g transform="translate(@(Seat.Data.PosX + 20), @(Seat.Data.PosY - 10))">
+        <rect x="0" y="0" width="240" height="@(20 + (State.Assignments.Count() * 50))"
+              fill="white" stroke="#333" stroke-width="1" rx="5"
+              @onclick="HandleInfoClick" @onclick:stopPropagation="true" />
+        <text x="10" y="25" font-size="14" font-weight="bold" fill="#333">
+            Offene Aufgaben
+        </text>
+        <line x1="0" y1="35" x2="240" y2="35" stroke="#ddd" stroke-width="1" />
+
+        @{
+            var yPos = 55;
+            var openAssignments = State.Assignments.ToList();
+        }
+
+        @if (openAssignments.Any())
+        {
+            @foreach (var assignment in openAssignments)
+            {
+                bool completed = State.IsCompleted(Seat.Participant?.Id);
+                <g @onclick="async () => { State.SelectAssignment(assignment.Id); await State.ToggleStatus(Seat.Participant!.Id); }"
+                   @onclick:stopPropagation="true"
+                   style="cursor: pointer;">
+                    <rect x="5" y="@(yPos - 12)" width="230" height="25"
+                          fill="@(State.SelectedAssignment?.Id == assignment.Id ? "#e6f3ff" : "transparent")"
+                          rx="3" />
+                    <text x="10" y="@yPos" font-size="12"
+                          fill="@(completed ? "#aaaaaa" : "#333333")">
+                        @assignment.Title
+                    </text>
+                    <circle cx="225" cy="@(yPos - 5)" r="7"
+                            fill="@(completed ? "#28a745" : "white")"
+                            stroke="@(completed ? "#28a745" : "#cccccc")"
+                            stroke-width="2" />
+                    @if (completed)
+                    {
+                        <path d="M 218 @(yPos - 6) l 4 4 l 7 -7"
+                              stroke="white" stroke-width="2" fill="none" />
+                    }
+                </g>
+                yPos += 30;
+            }
+        }
+    </g>
+}
+@code {
+    [Parameter] public CanvasSeat Seat { get; set; } = default!;
+
+    private bool _isPopupOpen;
+    private bool IsCompleted => State.IsCompleted(Seat.Participant?.Id);
+    private string StatusColor => IsCompleted ? "#28a745" : "#cc2222";
+    private bool HasAnyOpenAssignments => State.GetOpenAssignments(Seat.Participant?.Id).Any();
+    private CourseAssignment? ActiveAssignment => State.SelectedAssignment;
+    private async Task HandleSeatClick()
+    {
+        if (Seat.Participant != null)
+        {
+            await State.ToggleStatus(Seat.Participant.Id);
+        }
+    }
+
+    private void HandleInfoClick()
+    {
+        State.SelectAssignment(null);
+        _isPopupOpen = !_isPopupOpen;
+    }
+
+}

@@ -1,0 +1,297 @@
+﻿@page "/manage-courses"
+@attribute [Authorize]
+@using CourseManager.Data
+@inject IStudentService Service
+@inject IUserProvider UserProvider
+@inject IJSRuntime JS
+
+<div class="container-fluid">
+    <h3 class="mb-4">Kursverwaltung & Raumplanung</h3>
+
+    <div class="card mb-4 shadow-sm border-primary">
+        <div class="card-header bg-primary text-white">Neuen Kurs anlegen</div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <input @bind="newCourseName" class="form-control" placeholder="Kursname (z.B. Physik 9b)" />
+                </div>
+                <div class="col-md-2">
+                    <input @bind="newRoom" class="form-control" placeholder="Raum" />
+                </div>
+                <div class="col-md-3">
+                    <select class="form-select" @bind="newDay">
+                        <option value="">Wochentag</option>
+                        @foreach (var day in Enum.GetValues<DayOfWeek>())
+                        {
+                            <option value="@day">@GetGermanDay(day)</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <button class="btn btn-primary w-100" @onclick="CreateCourse">
+                        <i class="bi bi-plus-circle"></i> Kurs erstellen
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (allCourses.Any())
+    {
+        <div class="row">
+            <div class="col-md-4">
+                <div class="list-group shadow-sm">
+                    @foreach (var c in allCourses)
+                    {
+                        <div class="list-group-item list-group-item-action d-flex justify-content-between align-items-center @(selectedCourse?.Id == c.Id ? "active" : "")"
+                             style="cursor: pointer;" @onclick="() => SelectCourse(c)">
+                            <div>
+                                <strong>@c.Title</strong><br />
+                                <small class="@(selectedCourse?.Id == c.Id ? "text-white-50" : "text-muted")">
+                                    @GetGermanDay(c.Day) @c.StartTime?.ToString("HH:mm") | Raum @c.RoomNumber
+                                </small>
+                            </div>
+
+                            <div class="d-flex align-items-center">
+                                @* DER DIREKT-LINK BUTTON *@
+                                <a href="/svgcanvas/@c.Id"
+                                   class="btn btn-sm @(selectedCourse?.Id == c.Id ? "btn-light" : "btn-outline-primary") me-2"
+                                   @onclick:stopPropagation="true"
+                                   title="zur Stunde springen">
+                                    <i class="bi bi-backpack3-fill"></i>
+                                </a>
+
+                                <button class="btn btn-sm btn-outline-danger border-0"
+                                        @onclick:stopPropagation="true"
+                                        @onclick="() => ConfirmDelete(c)">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <div class="col-md-8">
+                @if (selectedCourse != null)
+                {
+                    <div class="card shadow">
+                        <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                            <span>Bearbeiten: <strong>@selectedCourse.Title</strong></span>
+                            <button class="btn btn-success btn-sm" @onclick="() => Service.SaveCourseAsync(selectedCourse)">
+                                <i class="bi bi-save"></i> Speichern
+                            </button>
+                        </div>
+                        <div class="card-body">
+
+                            <div class="row g-2 mb-4 border-bottom pb-3">
+                                <div class="col-md-3">
+                                    <label class="form-label small">Raum</label>
+                                    <input @bind="selectedCourse.RoomNumber" class="form-control form-control-sm" />
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label small">Tag</label>
+                                    <select class="form-select form-select-sm" @bind="selectedCourse.Day">
+                                        @foreach (var day in Enum.GetValues<DayOfWeek>())
+                                        {
+                                            <option value="@day">@GetGermanDay(day)</option>
+                                        }
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label small">Beginn</label>
+                                    <input type="time" class="form-control form-control-sm" @bind="selectedCourse.StartTime" />
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label small">Ende</label>
+                                    <input type="time" class="form-control form-control-sm" @bind="selectedCourse.EndTime" />
+                                </div>
+                            </div>
+
+                            <div class="mb-4">
+                                <label class="form-label fw-bold">Verknüpftes Regelset</label>
+                                <select class="form-select" @bind="selectedCourse.RuleSetId">
+                                    <option value="">-- Kein Regelset ausgewählt --</option>
+                                    @foreach (var set in allRuleSets)
+                                    {
+                                        <option value="@set.Id">@set.Title</option>
+                                    }
+                                </select>
+                            </div>
+
+                            <div class="mb-3 position-relative">
+                                <h6>Schüler hinzufügen:</h6>
+                                <input type="text" class="form-control" placeholder="Name tippen..."
+                                       @bind="searchTerm" @bind:event="oninput" />
+
+                                @if (!string.IsNullOrWhiteSpace(searchTerm))
+                                {
+                                    <ul class="list-group position-absolute w-100 shadow-lg" style="z-index: 1050; max-height: 200px; overflow-y: auto;">
+                                        @foreach (var p in FilteredPersons)
+                                        {
+                                            <button class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
+                                                    @onclick="() => AddPersonById(p.Id)">
+                                                <span>@p.FirstName @p.LastName</span>
+                                                <span class="badge bg-primary rounded-pill">+</span>
+                                            </button>
+                                        }
+                                    </ul>
+                                }
+                            </div>
+
+                            <h6>Aktuelle Liste: (@selectedCourse.Enrollments?.Count)</h6>
+                            <div class="table-responsive" style="max-height: 300px; overflow-x: auto;">
+                                <table class="table table-hover table-sm mb-0" style="min-width: 400px;">
+                                    <thead class="table-light sticky-top">
+                                        <tr>
+                                            <th>Name</th>
+                                            <th style="width: 100px;">Sitzplatz</th>
+                                            <th class="text-end" style="width: 60px;">Aktion</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var enrollment in selectedCourse.Enrollments)
+                                        {
+                                            <tr>
+                                                <td class="align-middle text-truncate" style="max-width: 150px;">
+                                                    @enrollment.Person?.FirstName @enrollment.Person?.LastName
+                                                </td>
+                                                <td class="align-middle">
+                                                    <small class="text-muted">@enrollment.PosX / @enrollment.PosY</small>
+                                                </td>
+                                                <td class="text-end align-middle">
+                                                    <div class="d-flex justify-content-end">
+                                                        <button class="btn btn-outline-danger btn-sm border-0"
+                                                                @onclick="() => RemoveParticipant(enrollment)"
+                                                                onmouseover="this.classList.add('btn-danger'); this.classList.remove('btn-outline-danger')"
+                                                                onmouseout="this.classList.remove('btn-danger'); this.classList.add('btn-outline-danger')"
+                                                                title="Schüler entfernen">
+                                                            <i class="bi bi-person-x-fill"></i>
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="alert alert-secondary shadow-sm">Wähle links einen Kurs aus oder erstelle einen neuen.</div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private string newCourseName = "";
+    private string? newRoom;
+    private DayOfWeek? newDay;
+
+    private List<Course> allCourses = new();
+    private List<Person> allPersons = new();
+    private List<RuleSet> allRuleSets = new();
+    private Course? selectedCourse;
+    private string searchTerm = "";
+
+    protected override async Task OnInitializedAsync() => await LoadData();
+
+    private async Task LoadData()
+    {
+        allCourses = await Service.GetCoursesWithParticipantsAsync();
+        allPersons = await Service.GetStudentsAsync();
+        allRuleSets = await Service.GetRuleSetsAsync();
+    }
+
+    private async Task CreateCourse()
+    {
+        var teacher = await UserProvider.GetCurrentTeacherAsync();
+        if (teacher == null || teacher.ActiveSchoolId == null)
+        {
+            Console.WriteLine("Fehler: Lehrer hat keine aktive Schul-ID zugeordnet.");
+            return;
+        }
+        if (!string.IsNullOrWhiteSpace(newCourseName))
+        {
+            var course = new Course
+            {
+                Title = newCourseName,
+                RoomNumber = newRoom,
+                Day = newDay,
+                TeacherId = teacher.Id,
+                SchoolId = (Guid)teacher.ActiveSchoolId!,
+                Enrollments = new List<CourseParticipant>()
+            };
+            await Service.SaveCourseAsync(course);
+            newCourseName = ""; newRoom = ""; newDay = null;
+            await LoadData();
+        }
+    }
+
+    private IEnumerable<Person> FilteredPersons => allPersons
+        .Where(p => (p.FirstName + " " + p.LastName).Contains(searchTerm, StringComparison.OrdinalIgnoreCase))
+        .Where(p => selectedCourse?.Enrollments.All(e => e.PersonId != p.Id) ?? true)
+        .Take(5);
+
+    private async Task AddPersonById(Guid id)
+    {
+        var person = allPersons.FirstOrDefault(p => p.Id == id);
+        if (person != null && selectedCourse != null)
+        {
+            searchTerm = "";
+            await HandleAddParticipant(person);
+        }
+    }
+
+    private async Task HandleAddParticipant(Person person)
+    {
+        if (selectedCourse == null) return;
+        if (selectedCourse.Enrollments == null) selectedCourse.Enrollments = new();
+
+        var newEnrollment = new CourseParticipant
+        {
+            PersonId = person.Id,
+            Person = person,
+            CourseId = selectedCourse.Id,
+            PosX = 0,
+            PosY = 0
+        };
+
+        selectedCourse.Enrollments.Add(newEnrollment);
+        await Service.SaveCourseAsync(selectedCourse);
+        // Kein vollständiges LoadData nötig, wenn wir das Objekt im Speicher aktuell halten
+    }
+
+    private async Task RemoveParticipant(CourseParticipant e)
+    {
+        selectedCourse?.Enrollments.Remove(e);
+        await Service.SaveCourseAsync(selectedCourse!);
+    }
+
+    private async Task ConfirmDelete(Course c)
+    {
+        var confirmed = await JS.InvokeAsync<bool>("confirm", $"Soll der Kurs '{c.Title}' wirklich gelöscht werden?");
+        if (confirmed)
+        {
+            await Service.DeleteCourseAsync(c.Id);
+            if (selectedCourse?.Id == c.Id) selectedCourse = null;
+            await LoadData();
+        }
+    }
+
+    private void SelectCourse(Course course) => selectedCourse = course;
+
+    private string GetGermanDay(DayOfWeek? day) => day switch
+    {
+        DayOfWeek.Monday => "Montag",
+        DayOfWeek.Tuesday => "Dienstag",
+        DayOfWeek.Wednesday => "Mittwoch",
+        DayOfWeek.Thursday => "Donnerstag",
+        DayOfWeek.Friday => "Freitag",
+        _ => "Kein Tag"
+    };
+}

@@ -1,0 +1,205 @@
+﻿@page "/studentdata"
+@attribute [Authorize]
+@layout MainLayout
+@using CourseManager.Data
+@inject IStudentService Service
+@implements IDisposable
+@inject IJSRuntime JS
+
+<div class="container-fluid mt-3">
+    <div class="row">
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="alert alert-danger shadow-sm">
+                <i class="bi bi-exclamation-triangle-fill"></i> @errorMessage
+            </div>
+        }
+        <div class="col-md-5">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">@(isNewStudent ? "Neue Person anlegen" : "Person bearbeiten")</h4>
+                </div>
+                <div class="card-body">
+
+                    <EditForm Model="@newStudent" OnValidSubmit="HandleValidSubmit">
+                        <DataAnnotationsValidator />
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Vorname</label>
+                            <InputText @bind-Value="newStudent.FirstName" class="form-control" @ref="vornameInput" />
+                            <ValidationMessage For="@(() => newStudent.FirstName)" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Nachname</label>
+                            <InputText @bind-Value="newStudent.LastName" class="form-control" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Geschlecht</label>
+                            <InputSelect @bind-Value="newStudent.Gender" class="form-control">
+                                @foreach (var gender in Enum.GetValues<Person.EGender>())
+                                {
+                                    <option value="@gender">@gender</option>
+                                }
+                            </InputSelect>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Geburtsdatum</label>
+                            <InputDate @bind-Value="newStudent.BirthDate" class="form-control" />
+                        </div>
+
+                        <hr />
+
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <button type="submit" class="btn btn-success">
+                                    <i class="bi bi-save"></i> @(isNewStudent ? "Speichern" : "Update")
+                                </button>
+
+                                @if (!isNewStudent)
+                                {
+                                    <button type="button" class="btn btn-outline-secondary ms-2" @onclick="ResetForm">
+                                        Abbrechen
+                                    </button>
+                                }
+                            </div>
+
+                            @if (!isNewStudent)
+                            {
+                                <button type="button" class="btn btn-danger" @onclick="HandleDelete">
+                                    <i class="bi bi-trash"></i> Löschen
+                                </button>
+                            }
+                        </div>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-7">
+            <div class="card shadow-sm" style="height: 85vh;">
+                <div class="card-header bg-light">
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="bi bi-search"></i></span>
+                        <input type="text" class="form-control" placeholder="Suche nach Name..."
+                               @bind="SearchTerm" @bind:event="oninput" />
+                    </div>
+                </div>
+                <div class="card-body p-0" style="overflow-y: auto;">
+                    <div class="list-group list-group-flush">
+                        @foreach (var student in FilteredStudents)
+                        {
+                            <button class="list-group-item list-group-item-action @(newStudent.Id == student.Id ? "active" : "")"
+                                    @onclick="() => LoadStudentForEditing(student)">
+                                <div class="d-flex w-100 justify-content-between">
+                                    <h6 class="mb-1">@student.FullName</h6>
+                                    <small class="@(newStudent.Id == student.Id ? "text-white" : "text-muted")">
+                                        @student.BirthDate.ToShortDateString()
+                                    </small>
+                                </div>
+                                <small>@student.Gender</small>
+                            </button>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+@code {
+    private Person newStudent = new();
+    private List<Person> pool = new();
+    private string SearchTerm { get; set; } = "";
+    private InputText? vornameInput;
+    private string? errorMessage;
+
+    // Prüfung auf Guid.Empty statt 0
+    private bool isNewStudent => newStudent.Id == Guid.Empty;
+
+    private IEnumerable<Person> FilteredStudents =>
+        string.IsNullOrWhiteSpace(SearchTerm)
+            ? pool
+            : pool.Where(s => s.FullName.Contains(SearchTerm, StringComparison.OrdinalIgnoreCase));
+
+    protected override async Task OnInitializedAsync()
+    {
+        Service.OnChanged += HandleServiceChanged;
+        await RefreshData();
+    }
+    private async Task HandleDelete()
+    {
+        // Einfache JS-Abfrage zur Sicherheit
+        bool confirmed = await JS.InvokeAsync<bool>("confirm", $"Soll {newStudent.FullName} wirklich gelöscht werden?");
+        if (confirmed)
+        {
+            await Service.DeleteStudentAsync(newStudent.Id); // Musst du im Service noch anlegen
+            ResetForm();
+            await RefreshData();
+        }
+    }
+
+    private async void HandleServiceChanged()
+    {
+        await InvokeAsync(async () =>
+        {
+            await RefreshData();
+            StateHasChanged();
+        });
+    }
+
+    private async Task RefreshData()
+    {
+        pool = await Service.GetStudentsAsync();
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        try
+        {
+            errorMessage = null; // Alten Fehler löschen
+            await Service.SaveStudentAsync(newStudent);
+
+            ResetForm();
+            await RefreshData();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+    }
+
+    private void LoadStudentForEditing(Person student)
+    {
+        newStudent = new Person
+        {
+            Id = student.Id,
+            FirstName = student.FirstName,
+            LastName = student.LastName,
+            BirthDate = student.BirthDate,
+            Gender = student.Gender
+        };
+    }
+
+    private void ResetForm()
+    {
+        newStudent = new();
+        SearchTerm = "";
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && vornameInput?.Element != null)
+        {
+            await vornameInput.Element.Value.FocusAsync();
+        }
+    }
+
+    public void Dispose()
+    {
+        Service.OnChanged -= HandleServiceChanged;
+    }
+}

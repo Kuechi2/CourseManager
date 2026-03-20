@@ -1,0 +1,101 @@
+﻿@page "/stundenplan"
+@inject IStudentService Service
+
+<div class="timetable-container p-3">
+    <div class="timetable-grid">
+        @* Kopfzeile *@
+        <div class="time-column"></div>
+        @foreach (var day in new[] { DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday, DayOfWeek.Friday })
+        {
+            <div class="day-header text-center fw-bold">@GetGermanDay(day)</div>
+        }
+
+        @for (int hour = 8; hour <= 16; hour++)
+        {
+            @* (hour - 8) * 4 + 2 sorgt dafür, dass die Stunden alle 4 Grid-Einheiten (60 Min) erscheinen *@
+            <div class="time-label" style="grid-row: @((hour - 8) * 4 + 2);">@hour:00</div>
+        }
+
+        @* Rote "Jetzt"-Linie *@
+        <div class="now-indicator" style="@GetNowPosition()"></div>
+
+        @* Die Kurse *@
+        @foreach (var c in allCourses.Where(c => c.Day.HasValue && c.StartTime.HasValue))
+        {
+            var startRow = CalculateRow(c.StartTime!.Value);
+            var endRow = c.EndTime.HasValue ? CalculateRow(c.EndTime.Value) : startRow + 3;
+
+            // Montag = Spalte 2, Dienstag = 3, etc.
+            var dayCol = GetDayColumn(c.Day!.Value);
+
+            <a href="/svgcanvas/@c.Id"
+               class="course-card shadow-sm text-decoration-none"
+               style="grid-column: @dayCol; grid-row: @startRow / @endRow;">
+                <div class="course-content">
+                    <strong>@c.Title</strong><br />
+                    <small>Raum @c.RoomNumber</small>
+                </div>
+            </a>
+        }
+    </div>
+
+    @* Parkplatz für zeitlose Kurse *@
+    <h5 class="mt-4">Kurse ohne Termin</h5>
+    <div class="d-flex flex-wrap gap-2">
+        @foreach (var c in allCourses.Where(c => !c.StartTime.HasValue))
+        {
+            <a href="/svgcanvas/@c.Id" class="btn btn-outline-secondary">@c.Title</a>
+        }
+    </div>
+</div>
+
+@code {
+    private List<Course> allCourses = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        allCourses = await Service.GetCoursesWithParticipantsAsync();
+    }
+
+    private int CalculateRow(TimeOnly time)
+{
+    // Minuten seit 8:00 Uhr
+    int totalMinutes = (time.Hour - 8) * 60 + time.Minute;
+    
+    // Durch 15 teilen für die Grid-Einheiten
+    // + 2, damit 8:00 Uhr in der Zeile NACH dem Header beginnt
+    return (totalMinutes / 15) + 2;
+}
+
+private string GetNowPosition()
+{
+    var now = DateTime.Now;
+    if (now.Hour < 8 || now.Hour > 16) return "display: none;";
+
+    double minutesSinceEight = (now.Hour - 8) * 60 + now.Minute;
+    // WICHTIG: Hier durch 15.0 teilen, damit die Linie flüssig gleitet
+    double row = (minutesSinceEight / 15.0) + 2;
+    
+    return $"grid-row: {row.ToString("F1", System.Globalization.CultureInfo.InvariantCulture)}; grid-column: 2 / 7;";
+}
+
+    private int GetDayColumn(DayOfWeek day) => day switch
+    {
+        DayOfWeek.Monday => 2,
+        DayOfWeek.Tuesday => 3,
+        DayOfWeek.Wednesday => 4,
+        DayOfWeek.Thursday => 5,
+        DayOfWeek.Friday => 6,
+        _ => 2
+    };
+
+    private string GetGermanDay(DayOfWeek day) => day switch
+    {
+        DayOfWeek.Monday => "Mo",
+        DayOfWeek.Tuesday => "Di",
+        DayOfWeek.Wednesday => "Mi",
+        DayOfWeek.Thursday => "Do",
+        DayOfWeek.Friday => "Fr",
+        _ => ""
+    };
+}
