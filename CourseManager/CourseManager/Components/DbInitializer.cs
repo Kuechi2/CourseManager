@@ -11,8 +11,7 @@ namespace CourseManager.Data // Prüfe, ob dein Namespace so heißt!
             // WICHTIG: Da wir hier im Seeding sind, haben wir oft noch keinen eingeloggten User.
             // Falls dein Context im OnModelCreating filtert, könnte er hier Dinge "verstecken".
             using var context = factory.CreateDbContext();
-
-            await context.Database.EnsureCreatedAsync();
+            await context.Database.MigrateAsync();   // ← war: EnsureCreatedAsync()
 
             // Wenn schon Schulen da sind, gehen wir davon aus, dass bereits geseedet wurde
             if (await context.Schools.AnyAsync()) return;

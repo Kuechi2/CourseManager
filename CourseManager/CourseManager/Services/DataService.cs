@@ -67,8 +67,9 @@ namespace CourseManager.Data
                     .ThenInclude(e => e.Person)
                 .Include(c => c.SeatLayouts!)
                     .ThenInclude(l => l.Seats!)
-                        .ThenInclude(s => s.Participant) // Wer sitzt hier?
-                            .ThenInclude(p => p!.Person) // Wie heißt die Person?
+                        .ThenInclude(s => s.Participant)
+                            .ThenInclude(p => p!.Person)
+                .Include(c => c.Appointments)
                 .ToListAsync();
         }
         public async Task<Course?> GetCourseWithParticipantsAsync(Guid id)
@@ -81,6 +82,7 @@ namespace CourseManager.Data
                     .ThenInclude(l => l.Seats!)
                         .ThenInclude(s => s.Participant)
                             .ThenInclude(p => p!.Person)
+                .Include(c => c.Appointments)
                 .FirstOrDefaultAsync(c => c.Id == id);
 
             // DEBUG-LOGS HIER:
@@ -111,6 +113,7 @@ namespace CourseManager.Data
                 .Include(c => c.Enrollments)
                 .Include(c => c.SeatLayouts)
                     .ThenInclude(l => l.Seats)
+                .Include(c => c.Appointments)
                 .FirstOrDefaultAsync(c => c.Id == course.Id);
 
             if (dbCourse == null)
@@ -128,6 +131,9 @@ namespace CourseManager.Data
 
                 // --- SEAT LAYOUTS SYNC ---
                 SyncSeatLayouts(context, dbCourse, course);
+
+                // Nach SyncSeatLayouts(context, dbCourse, course);
+                SyncAppointments(context, dbCourse, course);
             }
 
             try
@@ -558,6 +564,7 @@ namespace CourseManager.Data
             .ThenInclude(l => l.Seats!)         // ✅ NEU
                 .ThenInclude(s => s.Participant) // ✅ NEU
                     .ThenInclude(p => p!.Person)  // ✅ NEU
+                .Include(c => c.Appointments)
                 .FirstOrDefaultAsync(c => c.Id == id);
         }
 
@@ -838,6 +845,32 @@ namespace CourseManager.Data
             // 4. Einmal speichern für ALLES
             var affected = await context.SaveChangesAsync();
             Console.WriteLine($"[MAINTENANCE] {affected} Schulen mit neuem GlobalRuleAverage aktualisiert.");
+        }
+
+        private void SyncAppointments(AppDataContext context, Course dbCourse, Course uiCourse)
+        {
+            // Gelöschte Termine entfernen
+            foreach (var dbApp in dbCourse.Appointments.ToList())
+            {
+                if (!uiCourse.Appointments.Any(a => a.Id == dbApp.Id))
+                    context.CourseAppointments.Remove(dbApp);
+            }
+
+            // Neue/geänderte Termine speichern
+            foreach (var uiApp in uiCourse.Appointments)
+            {
+                var dbApp = dbCourse.Appointments.FirstOrDefault(a => a.Id == uiApp.Id);
+                if (dbApp == null)
+                {
+                    uiApp.CourseId = dbCourse.Id;
+                    dbCourse.Appointments.Add(uiApp);
+                    context.Entry(uiApp).State = EntityState.Added;
+                }
+                else
+                {
+                    context.Entry(dbApp).CurrentValues.SetValues(uiApp);
+                }
+            }
         }
     }
     }

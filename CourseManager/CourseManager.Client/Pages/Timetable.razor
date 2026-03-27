@@ -20,29 +20,30 @@
         <div class="now-indicator" style="@GetNowPosition()"></div>
 
         @* Die Kurse *@
-        @foreach (var c in allCourses.Where(c => c.Day.HasValue && c.StartTime.HasValue))
+        @foreach (var c in allCourses)
         {
-            var startRow = CalculateRow(c.StartTime!.Value);
-            var endRow = c.EndTime.HasValue ? CalculateRow(c.EndTime.Value) : startRow + 3;
+            @foreach (var appointment in c.Appointments)
+            {
+                var startRow = CalculateRow(appointment.StartTime!.Value);
+                var endRow = appointment.EndTime.HasValue ? CalculateRow(appointment.EndTime.Value) : startRow + 3;
+                var dayCol = GetDayColumn(appointment.Day);
 
-            // Montag = Spalte 2, Dienstag = 3, etc.
-            var dayCol = GetDayColumn(c.Day!.Value);
-
-            <a href="/svgcanvas/@c.Id"
-               class="course-card shadow-sm text-decoration-none"
-               style="grid-column: @dayCol; grid-row: @startRow / @endRow;">
-                <div class="course-content">
-                    <strong>@c.Title</strong><br />
-                    <small>Raum @c.RoomNumber</small>
-                </div>
-            </a>
+                <a href="/svgcanvas/@c.Id"
+                   class="course-card shadow-sm text-decoration-none"
+                   style="grid-column: @dayCol; grid-row: @startRow / @endRow;">
+                    <div class="course-content">
+                        <strong>@c.Title</strong><br />
+                        <small>Raum @c.RoomNumber</small>
+                    </div>
+                </a>
+            }
         }
     </div>
 
     @* Parkplatz für zeitlose Kurse *@
     <h5 class="mt-4">Kurse ohne Termin</h5>
     <div class="d-flex flex-wrap gap-2">
-        @foreach (var c in allCourses.Where(c => !c.StartTime.HasValue))
+        @foreach (var c in allCourses.Where(c => !c.Appointments.Any()))
         {
             <a href="/svgcanvas/@c.Id" class="btn btn-outline-secondary">@c.Title</a>
         }

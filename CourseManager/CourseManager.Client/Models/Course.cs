@@ -8,17 +8,15 @@ namespace CourseManager.Data
         public Guid Id { get; set; } = Guid.NewGuid();
 
         [Required]
-        public string Title { get; set; } = string.Empty; 
+        public string Title { get; set; } = string.Empty;
         public List<CourseParticipant> Enrollments { get; set; } = new();
         public List<SeatLayout> SeatLayouts { get; set; } = new();
+        public List<CourseAppointment> Appointments { get; set; } = new();
         public Teacher? Teacher { get; set; }
         public Guid? TeacherId { get; set; }
         public Guid? RuleSetId { get; set; }
         public RuleSet? RuleSet { get; set; }
         public string? RoomNumber { get; set; }
-        public DayOfWeek? Day { get; set; }
-        public TimeOnly? StartTime { get; set; }
-        public TimeOnly? EndTime { get; set; }
         public Guid SchoolId { get; set; }
 
         public Course() { }
@@ -44,9 +42,7 @@ namespace CourseManager.Data
                     PersonId = person.Id,
                     Person = person,
                     Course = this
-                    // PosX/Y SIND JETZT WEG!
                 };
-
                 Enrollments.Add(enrollment);
             }
         }

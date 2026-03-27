@@ -213,12 +213,14 @@
             var allCourses = await Service.GetCoursesWithParticipantsAsync();
 
             currentCourse = allCourses
-                .OrderByDescending(c => c.Day == today)
-                .ThenByDescending(c => c.Day == today &&
-                                      c.StartTime.HasValue &&
-                                      currentTime >= c.StartTime.Value) // Direkter Vergleich möglich!
-                .ThenBy(c => c.StartTime.HasValue ? 0 : 1)
-                .ThenBy(c => c.StartTime)
+                .OrderByDescending(c => c.Appointments.Any(a => a.Day == today))
+                .ThenByDescending(c => c.Appointments.Any(a =>
+                    a.Day == today &&
+                    a.StartTime.HasValue &&
+                    currentTime >= a.StartTime.Value))
+                .ThenBy(c => c.Appointments
+                    .Where(a => a.StartTime.HasValue)
+                    .Min(a => (TimeOnly?)a.StartTime) ?? TimeOnly.MaxValue)
                 .FirstOrDefault();
         }
         if (currentCourse != null)

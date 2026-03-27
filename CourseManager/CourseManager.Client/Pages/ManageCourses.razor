@@ -12,20 +12,11 @@
         <div class="card-header bg-primary text-white">Neuen Kurs anlegen</div>
         <div class="card-body">
             <div class="row g-3">
-                <div class="col-md-4">
+                <div class="col-md-6">
                     <input @bind="newCourseName" class="form-control" placeholder="Kursname (z.B. Physik 9b)" />
                 </div>
-                <div class="col-md-2">
-                    <input @bind="newRoom" class="form-control" placeholder="Raum" />
-                </div>
                 <div class="col-md-3">
-                    <select class="form-select" @bind="newDay">
-                        <option value="">Wochentag</option>
-                        @foreach (var day in Enum.GetValues<DayOfWeek>())
-                        {
-                            <option value="@day">@GetGermanDay(day)</option>
-                        }
-                    </select>
+                    <input @bind="newRoom" class="form-control" placeholder="Raum" />
                 </div>
                 <div class="col-md-3">
                     <button class="btn btn-primary w-100" @onclick="CreateCourse">
@@ -33,6 +24,10 @@
                     </button>
                 </div>
             </div>
+            @if (_createError != null)
+            {
+                <div class="alert alert-danger mt-2 mb-0 py-2">@_createError</div>
+            }
         </div>
     </div>
 
@@ -48,7 +43,9 @@
                             <div>
                                 <strong>@c.Title</strong><br />
                                 <small class="@(selectedCourse?.Id == c.Id ? "text-white-50" : "text-muted")">
-                                    @GetGermanDay(c.Day) @c.StartTime?.ToString("HH:mm") | Raum @c.RoomNumber
+                                    @(c.Appointments.FirstOrDefault() is CourseAppointment a
+                                    ? $"{GetGermanDay(a.Day)} {a.StartTime?.ToString("HH:mm")}"
+                                    : "Kein Termin") | Raum @c.RoomNumber
                                 </small>
                             </div>
 
@@ -85,26 +82,9 @@
                         <div class="card-body">
 
                             <div class="row g-2 mb-4 border-bottom pb-3">
-                                <div class="col-md-3">
+                                <div class="col-md-6">
                                     <label class="form-label small">Raum</label>
                                     <input @bind="selectedCourse.RoomNumber" class="form-control form-control-sm" />
-                                </div>
-                                <div class="col-md-3">
-                                    <label class="form-label small">Tag</label>
-                                    <select class="form-select form-select-sm" @bind="selectedCourse.Day">
-                                        @foreach (var day in Enum.GetValues<DayOfWeek>())
-                                        {
-                                            <option value="@day">@GetGermanDay(day)</option>
-                                        }
-                                    </select>
-                                </div>
-                                <div class="col-md-3">
-                                    <label class="form-label small">Beginn</label>
-                                    <input type="time" class="form-control form-control-sm" @bind="selectedCourse.StartTime" />
-                                </div>
-                                <div class="col-md-3">
-                                    <label class="form-label small">Ende</label>
-                                    <input type="time" class="form-control form-control-sm" @bind="selectedCourse.EndTime" />
                                 </div>
                             </div>
 
@@ -175,6 +155,42 @@
                                     </tbody>
                                 </table>
                             </div>
+
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Termine</label>
+                                @foreach (var appointment in selectedCourse.Appointments)
+                                {
+                                    <div class="row g-2 mb-2 align-items-center border rounded p-2">
+                                        <div class="col-md-3">
+                                            <label class="form-label small">Tag</label>
+                                            <select class="form-select form-select-sm" @bind="appointment.Day">
+                                                @foreach (var day in Enum.GetValues<DayOfWeek>())
+                                                {
+                                                    <option value="@day">@GetGermanDay(day)</option>
+                                                }
+                                            </select>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label small">Beginn</label>
+                                            <input type="time" class="form-control form-control-sm" @bind="appointment.StartTime" />
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label small">Ende</label>
+                                            <input type="time" class="form-control form-control-sm" @bind="appointment.EndTime" />
+                                        </div>
+                                        <div class="col-md-3 d-flex align-items-end">
+                                            <button class="btn btn-outline-danger btn-sm"
+                                                    @onclick="() => selectedCourse.Appointments.Remove(appointment)">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                }
+                                <button class="btn btn-outline-primary btn-sm mt-1"
+                                        @onclick="() => selectedCourse.Appointments.Add(new CourseAppointment { CourseId = selectedCourse.Id })">
+                                    <i class="bi bi-plus"></i> Termin hinzufügen
+                                </button>
+                            </div>
                         </div>
                     </div>
                 }
@@ -190,7 +206,7 @@
 @code {
     private string newCourseName = "";
     private string? newRoom;
-    private DayOfWeek? newDay;
+    private string? _createError;
 
     private List<Course> allCourses = new();
     private List<Person> allPersons = new();
@@ -209,26 +225,38 @@
 
     private async Task CreateCourse()
     {
+        _createError = null;
         var teacher = await UserProvider.GetCurrentTeacherAsync();
+
         if (teacher == null || teacher.ActiveSchoolId == null)
         {
-            Console.WriteLine("Fehler: Lehrer hat keine aktive Schul-ID zugeordnet.");
+            _createError = "Fehler: Kein aktiver Lehrer-Account gefunden.";
             return;
         }
-        if (!string.IsNullOrWhiteSpace(newCourseName))
+        if (string.IsNullOrWhiteSpace(newCourseName))
+        {
+            _createError = "Bitte einen Kursnamen eingeben.";
+            return;
+        }
+
+        try
         {
             var course = new Course
             {
                 Title = newCourseName,
                 RoomNumber = newRoom,
-                Day = newDay,
                 TeacherId = teacher.Id,
                 SchoolId = (Guid)teacher.ActiveSchoolId!,
                 Enrollments = new List<CourseParticipant>()
             };
             await Service.SaveCourseAsync(course);
-            newCourseName = ""; newRoom = ""; newDay = null;
+            newCourseName = ""; newRoom = "";
             await LoadData();
+        }
+        catch (Exception ex)
+        {
+            _createError = $"Fehler beim Speichern: {ex.Message}";
+            Console.WriteLine(ex);
         }
     }
 

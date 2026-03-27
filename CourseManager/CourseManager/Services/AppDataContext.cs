@@ -58,6 +58,7 @@ public class AppDataContext : IdentityDbContext<Teacher, IdentityRole<Guid>, Gui
     public DbSet<CanvasSeatData> Seats { get; set; }
     public DbSet<CourseManager.Data.Course> Courses { get; set; }
     public DbSet<CourseParticipant> CourseParticipants { get; set; }
+    public DbSet<CourseAppointment> CourseAppointments { get; set; }
     public DbSet<RuleSet> RuleSets { get; set; }
     public DbSet<Rule> Rules { get; set; }
     public DbSet<RuleOccurrence> RuleOccurrences { get; set; }
