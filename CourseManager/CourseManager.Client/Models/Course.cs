@@ -18,9 +18,9 @@ namespace CourseManager.Data
         public string? RoomNumber { get; set; }
         public DayOfWeek? Day { get; set; }
         public TimeOnly? StartTime { get; set; }
+        public TimeOnly? EndTime { get; set; }
         public Guid SchoolId { get; set; }
 
-        public TimeOnly? EndTime { get; set; }
         public Course() { }
 
         public Course(string title)

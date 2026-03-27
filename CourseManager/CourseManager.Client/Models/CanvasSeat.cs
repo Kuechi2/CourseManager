@@ -11,9 +11,7 @@ public class CanvasSeat : CanvasDrawable
 {
     public CanvasSeatData Data { get; }
     public CourseParticipant? Participant { get; private set; }
-    //public Guid SeatLayoutId { get; set; }
     public List<SeatLayout>? SeatLayouts { get; set; } = new();
-    // Wir speichern den Namen direkt im Drawable, damit das SVG nicht suchen muss
     public string DisplayName { get; set; } = "Leerer Platz";
     public bool IsOccupied => Data.CourseParticipantId.HasValue;
 
@@ -22,29 +20,21 @@ public class CanvasSeat : CanvasDrawable
         Data = data;
         UpdateOccupantInfo(null); // Ruft die Namens-Logik auf
     }
-
-    // Diesen hier nutzen wir, wenn wir die Schülerdaten parat haben
     public CanvasSeat(CanvasSeatData data, CourseParticipant? participant)
     {
         Data = data;
         UpdateOccupantInfo(participant);
-        OccupantName = participant?.Person?.FirstName ?? "Leerer Platz";
     }
 
     private void UpdateOccupantInfo(CourseParticipant? participant)
     {
-        // Priorität 1: Der übergebene Participant
-        // Priorität 2: Der im Data-Objekt (falls vorhanden)
         var p = participant ?? Data.Participant;
         Participant = participant ?? Data.Participant;
-        OccupantName = p?.Person?.FirstName ?? "Leerer Tisch";
+        OccupantName = p?.Person?.FirstName +" "+ p?.Person?.LastName ?? "Leerer Tisch";
         Color = (p != null || Data.CourseParticipantId.HasValue) ? "lightblue" : "#eeeeee";
-
-        // Standard-Events
         OnClicked = (drawable) => { IsSelected = !IsSelected; };
     }
-    // Wir nutzen die Properties aus dem Datenobjekt direkt
-    public string _originalColor { get; set; } = "#ff00ff"; // Magenta als Platzhalter
+    public string _originalColor { get; set; } = "#ff00ff";
     public int X => Data.PosX;
     public int Y => Data.PosY;
 
@@ -94,10 +84,16 @@ public class CanvasSeat : CanvasDrawable
         get
         {
             yield return new CanvasSquareChild(Size, GetDynamicColor(), IsSelected ? SelectedColor : "#333");
-            yield return new CanvasTextChild(OccupantName, "black");
-            if (Data.CourseParticipantId.HasValue)
+
+            var parts = OccupantName.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length == 2)
             {
-                yield return new CanvasScoreTextChild(CurrentBiasScore, Size / 2 + 20);
+                yield return new CanvasTextChild(parts[0], "black", -8);
+                yield return new CanvasTextChild(parts[1], "black", +8);
+            }
+            else
+            {
+                yield return new CanvasTextChild(OccupantName, "black", 0);
             }
         }
     }
@@ -141,11 +137,12 @@ public class CanvasSeat : CanvasDrawable
 
     private class CanvasTextChild : CanvasDrawable
     {
-        private string _t; private string _f;
-        public CanvasTextChild(string t, string f) { _t = t; _f = f; }
+        private string _t; private string _f; private int _y;
+        public CanvasTextChild(string t, string f, int yOffset = 0) { _t = t; _f = f; _y = yOffset; }
         public override string SvgElement => "text";
         public override string SvgContent => _t;
         protected override Dictionary<string, object> GetBaseSvgAttributes() => new() {
+            { "y", _y },
             { "text-anchor", "middle" }, { "dominant-baseline", "central" },
             { "fill", _f }, { "style", "font-size: 10px; font-family: Arial; pointer-events: none;" }
         };

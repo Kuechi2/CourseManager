@@ -85,37 +85,37 @@
         <div class="ms-1 d-flex flex-column gap-2" style="width: 200px;">
             <div class="p-1 mb-1 bg-secondary text-white rounded text-center small shadow-sm">
         Sitzordnung
-    </div>
+        </div>
+                @if (currentCourse?.SeatLayouts?.Count > 1)
+                {
+                    <select class="form-select form-select-sm"
+                            @bind="selectedLayoutId"
+                            @bind:after="OnLayoutChangedAsync">
+                        @foreach (var seatLayout in currentCourse.SeatLayouts)
+                        {
+                            <option value="@seatLayout.Id">
+                                @seatLayout.Name @(seatLayout.IsActive ? "✓" : "")
+                            </option>
+                        }
+                    </select>
+                }
+        <div class="btn-group btn-group-sm" role="group">
+            <button class="btn btn-outline-primary" @onclick="DuplicateCurrentLayout" 
+                    title="Aktuelles Layout duplizieren">
+                <i class="bi bi-files"></i> Duplizieren
+            </button>
             @if (currentCourse?.SeatLayouts?.Count > 1)
             {
-                <select class="form-select form-select-sm"
-                        @bind="selectedLayoutId"
-                        @bind:after="OnLayoutChangedAsync">
-                    @foreach (var seatLayout in currentCourse.SeatLayouts)
-                    {
-                        <option value="@seatLayout.Id">
-                            @seatLayout.Name @(seatLayout.IsActive ? "✓" : "")
-                        </option>
-                    }
-                </select>
+                <button class="btn btn-outline-danger" @onclick="DeleteCurrentLayout"
+                        title="Aktuelles Layout löschen">
+                    <i class="bi bi-trash"></i>
+                </button>
             }
-    <div class="btn-group btn-group-sm" role="group">
-        <button class="btn btn-outline-primary" @onclick="DuplicateCurrentLayout" 
-                title="Aktuelles Layout duplizieren">
-            <i class="bi bi-files"></i> Duplizieren
-        </button>
-        @if (currentCourse?.SeatLayouts?.Count > 1)
-        {
-            <button class="btn btn-outline-danger" @onclick="DeleteCurrentLayout"
-                    title="Aktuelles Layout löschen">
-                <i class="bi bi-trash"></i>
-            </button>
-        }
+        </div>
+                <button class="btn @(_hasUnsavedChanges ? "btn-danger" : "btn-success") btn-sm text-start d-flex align-items-center" @onclick="SaveLayout">
+                    <i class="bi bi-save me-2"></i> Layout speichern
+                </button>
     </div>
-            <button class="btn @(_hasUnsavedChanges ? "btn-danger" : "btn-success") btn-sm text-start d-flex align-items-center" @onclick="SaveLayout">
-                <i class="bi bi-save me-2"></i> Layout speichern
-            </button>
-</div>
         <div class="mt-2 p-2 border rounded bg-light small" style="font-size: 0.75rem;">
             @_status
         </div>
@@ -625,6 +625,7 @@
         Manager._constraintManager.ApplyAllConstraints();
         Manager.Lmp.X = (float)e.OffsetX;
         Manager.Lmp.Y = (float)e.OffsetY;
+        _hasUnsavedChanges = true;
     }
     private void OnSvgMouseDown(PointerEventArgs e)
     {
