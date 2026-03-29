@@ -1,0 +1,49 @@
+@using CourseManager.Data
+@using System.Globalization
+
+<div class="card shadow-sm h-100">
+    <div class="card-header fw-bold">📋 Regelanwendung</div>
+    <div class="card-body">
+        @{
+            var stats = BuildRuleStats();
+            var maxCount = stats.Any() ? stats.Max(r => r.Count) : 1;
+        }
+        @if (!stats.Any())
+        {
+            <p class="text-muted text-center mb-0">Keine Daten vorhanden.</p>
+        }
+        else
+        {
+            @foreach (var rule in stats)
+            {
+                var pct = maxCount > 0 ? rule.Count * 100.0 / maxCount : 0;
+                var barClass = rule.AvgPoints >= 0 ? "bg-success" : "bg-danger";
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between mb-1">
+                        <span class="fw-semibold small">@rule.RuleName</span>
+                        <span class="badge bg-secondary">@rule.Count ×</span>
+                    </div>
+                    <div class="progress" style="height:10px"
+                         title="Ø @rule.AvgPoints.ToString("F1") Pkt pro Anwendung">
+                        <div class="progress-bar @barClass"
+                             style="width:@pct.ToString("F1", CultureInfo.InvariantCulture)%">
+                        </div>
+                    </div>
+                </div>
+            }
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public List<RuleOccurrence> Occurrences { get; set; } = new();
+
+    private record RuleStat(string RuleName, int Count, double AvgPoints);
+
+    private List<RuleStat> BuildRuleStats() =>
+        Occurrences
+            .GroupBy(o => string.IsNullOrWhiteSpace(o.RuleTitle) ? o.RuleName : o.RuleTitle)
+            .Select(g => new RuleStat(g.Key, g.Count(), g.Average(o => o.BiasPoints)))
+            .OrderByDescending(r => r.Count)
+            .ToList();
+}

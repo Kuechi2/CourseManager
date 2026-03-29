@@ -441,7 +441,8 @@
             {
                 PersonId = seat.Participant.PersonId,
                 CourseId = currentCourse?.Id,
-                RuleName = FormatExplanation(rule, seat.Participant.Person),
+                RuleName = FormatExplanation(rule, seat.Participant.Person),  // ← Chronik-Text (unverändert)
+                RuleTitle = rule.Name,                                         // ← NEU: für Statistiken
                 Points = rule.Points,
                 BiasPoints = rule.Points - teacher!.PointsBias + SchoolBias,
                 Timestamp = DateTime.Now

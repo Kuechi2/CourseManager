@@ -1,0 +1,91 @@
+@page "/statistics"
+@attribute [Authorize]
+@layout MainLayout
+@using CourseManager.Data
+@inject IStudentService Service
+
+<div class="container-fluid mt-3">
+    <div class="d-flex align-items-center gap-2 mb-3">
+        <span class="fs-2">📊</span>
+        <h3 class="mb-0">Auswertung</h3>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <div class="row g-3 align-items-end">
+                <div class="col-md-4">
+                    <label class="form-label fw-bold">Kurs</label>
+                    <select class="form-select" @bind="_selectedCourseId" @bind:after="LoadDataAsync">
+                        <option value="">— Kurs wählen —</option>
+                        @foreach (var c in _courses)
+                        {
+                            <option value="@c.Id">@c.Title</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label fw-bold">Von</label>
+                    <input type="date" class="form-control" @bind="_startDate" @bind:after="LoadDataAsync" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label fw-bold">Bis</label>
+                    <input type="date" class="form-control" @bind="_endDate" @bind:after="LoadDataAsync" />
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (_loading)
+    {
+        <div class="text-center mt-5">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p class="mt-2 text-muted">Lade Daten…</p>
+        </div>
+    }
+    else if (_selectedCourse is not null && _occurrences.Count > 0)
+    {
+        <PerformanceChart Occurrences="_occurrences"
+                          Participants="_selectedCourse.Enrollments"
+                          StartDate="_startDate"
+                          EndDate="_endDate" />
+
+        <div class="row mt-4 g-4">
+            <div class="col-md-6">
+                <GroupRankingPanel Occurrences="_occurrences"
+                                   Participants="_selectedCourse.Enrollments" />
+            </div>
+            <div class="col-md-6">
+                <RuleFrequencyPanel Occurrences="_occurrences" />
+            </div>
+        </div>
+    }
+    else if (_selectedCourse is not null)
+    {
+        <div class="alert alert-info mt-3">Für diesen Zeitraum liegen keine Daten vor.</div>
+    }
+</div>
+
+@code {
+    private List<Course> _courses = new();
+    private string _selectedCourseId = string.Empty;
+    private Course? _selectedCourse => _courses.FirstOrDefault(c => c.Id.ToString() == _selectedCourseId);
+    private List<RuleOccurrence> _occurrences = new();
+    private DateTime _startDate = DateTime.Today.AddMonths(-1);
+    private DateTime _endDate = DateTime.Today;
+    private bool _loading;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _courses = await Service.GetCoursesWithParticipantsAsync();
+    }
+
+    private async Task LoadDataAsync()
+    {
+        if (string.IsNullOrEmpty(_selectedCourseId)) return;
+        _loading = true;
+        StateHasChanged();
+        _occurrences = await Service.GetOccurrencesByCourseAsync(
+            Guid.Parse(_selectedCourseId), _startDate, _endDate);
+        _loading = false;
+    }
+}

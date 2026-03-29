@@ -1,0 +1,145 @@
+@using CourseManager.Data
+@using System.Globalization
+@using Microsoft.AspNetCore.Components
+
+<div class="card shadow-sm mb-4">
+    <div class="card-header fw-bold">📈 Performance im Zeitverlauf</div>
+    <div class="card-body p-2">
+        @if (_lines.Count == 0)
+        {
+            <p class="text-muted text-center py-3">Keine Daten vorhanden.</p>
+        }
+        else
+        {
+            <svg viewBox="0 0 800 280" xmlns="http://www.w3.org/2000/svg"
+                 style="width:100%;height:280px;overflow:visible">
+
+                @* Y-Gridlines *@
+                @for (int i = 0; i <= 4; i++)
+                {
+                    int si = i;
+                    double gy = PadTop + ChartH * si / 4.0;
+                    double lv = _maxValue - (_maxValue - _minValue) * si / 4.0;
+                    <line x1="@F(PadLeft)" y1="@F(gy)" x2="@F(Width - PadRight)" y2="@F(gy)"
+                          stroke="#e9ecef" stroke-width="1" />
+                    @SvgLabel(PadLeft - 5, gy + 4, "end", lv.ToString("F0", Inv))
+                }
+
+                @* X-Achsen-Labels *@
+                @for (int i = 0; i < _dates.Count; i += Math.Max(1, _dates.Count / 8))
+                {
+                    @SvgLabel(SvgX(i), Height - PadBottom + 14, "middle", _dates[i].ToString("dd.MM"))
+                }
+
+                @* Achsen *@
+                <line x1="@F(PadLeft)" y1="@F(PadTop)"
+                      x2="@F(PadLeft)" y2="@F(Height - PadBottom)" stroke="#adb5bd" stroke-width="1" />
+                <line x1="@F(PadLeft)" y1="@F(Height - PadBottom)"
+                      x2="@F(Width - PadRight)" y2="@F(Height - PadBottom)" stroke="#adb5bd" stroke-width="1" />
+
+                @* Nulllinie bei negativen Werten *@
+                @if (_minValue < 0)
+                {
+                    <line x1="@F(PadLeft)" y1="@F(SvgY(0))"
+                          x2="@F(Width - PadRight)" y2="@F(SvgY(0))"
+                          stroke="#6c757d" stroke-width="1" stroke-dasharray="4 4" />
+                }
+
+                @* Schülerlinien *@
+                @for (int pi = 0; pi < _lines.Count; pi++)
+                {
+                    var (_, pts) = _lines[pi];
+                    var color = Colors[pi % Colors.Length];
+                    var polyPts = string.Join(" ",
+                        pts.Select((v, idx) => $"{F(SvgX(idx))},{F(SvgY(v))}"));
+                    <polyline points="@polyPts" fill="none" stroke="@color"
+                              stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />
+                    <circle cx="@F(SvgX(_dates.Count - 1))"
+                            cy="@F(SvgY(pts.Last()))"
+                            r="4" fill="@color" stroke="white" stroke-width="1.5" />
+                }
+            </svg>
+
+            <div class="d-flex flex-wrap gap-2 px-2 pt-1">
+                @for (int pi = 0; pi < _lines.Count; pi++)
+                {
+                    var (name, _) = _lines[pi];
+                    var color = Colors[pi % Colors.Length];
+                    <span class="badge rounded-pill px-2 py-1"
+                          style="background-color:@color;color:white;font-size:0.7rem">@name</span>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public List<RuleOccurrence> Occurrences { get; set; } = new();
+    [Parameter] public List<CourseParticipant> Participants { get; set; } = new();
+    [Parameter] public DateTime StartDate { get; set; }
+    [Parameter] public DateTime EndDate { get; set; }
+
+    private static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
+    private static readonly string[] Colors = {
+        "#4e79a7", "#f28e2b", "#e15759", "#76b7b2",
+        "#59a14f", "#edc948", "#b07aa1", "#ff9da7", "#9c755f", "#bab0ac"
+    };
+
+    private const double PadLeft = 50, PadRight = 15, PadTop = 15, PadBottom = 30;
+    private const double Width = 800, Height = 280;
+    private double ChartW => Width - PadLeft - PadRight;
+    private double ChartH => Height - PadTop - PadBottom;
+
+    private List<DateTime> _dates = new();
+    private List<(string Name, List<double> CumulPoints)> _lines = new();
+    private double _minValue, _maxValue = 1;
+
+    protected override void OnParametersSet() => Compute();
+
+    private void Compute()
+    {
+        _lines = new();
+        if (!Occurrences.Any() || StartDate == default) return;
+
+        _dates = Enumerable.Range(0, (EndDate - StartDate).Days + 1)
+            .Select(d => StartDate.Date.AddDays(d))
+            .ToList();
+
+        foreach (var p in Participants.Where(p => p.Person != null))
+        {
+            var byDate = Occurrences
+                .Where(o => o.PersonId == p.PersonId)
+                .GroupBy(o => o.Timestamp.Date)
+                .ToDictionary(g => g.Key, g => g.Sum(o => o.BiasPoints));
+
+            if (!byDate.Any()) continue;
+
+            double cumul = 0;
+            var cumulPoints = _dates
+                .Select(d => { if (byDate.TryGetValue(d, out var v)) cumul += v; return cumul; })
+                .ToList();
+
+            _lines.Add(($"{p.Person.FirstName} {p.Person.LastName}", cumulPoints));
+        }
+
+        if (!_lines.Any()) return;
+        var all = _lines.SelectMany(l => l.CumulPoints).ToList();
+        _minValue = Math.Min(0, all.Min());
+        _maxValue = Math.Max(1, all.Max());
+    }
+
+    private double SvgX(int i) =>
+        _dates.Count <= 1 ? PadLeft + ChartW / 2 : PadLeft + i * (ChartW / (_dates.Count - 1));
+
+    private double SvgY(double v)
+    {
+        var range = _maxValue - _minValue;
+        return range == 0 ? PadTop + ChartH / 2 : PadTop + ChartH - (v - _minValue) / range * ChartH;
+    }
+
+    private static string F(double v) => v.ToString("F1", CultureInfo.InvariantCulture);
+
+    // Blazor reserviert <text> als Razor-Direktiv → MarkupString für SVG-Textlabels
+    private static MarkupString SvgLabel(double x, double y, string textAnchor, string content) =>
+        (MarkupString)$"<text x=\"{F(x)}\" y=\"{F(y)}\" text-anchor=\"{textAnchor}\" font-size=\"10\" fill=\"#666\">{content}</text>";
+}

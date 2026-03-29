@@ -626,6 +626,15 @@ namespace CourseManager.Data
                 .ToListAsync();
         }
 
+        public async Task<List<RuleOccurrence>> GetOccurrencesByCourseAsync(Guid courseId, DateTime start, DateTime end)
+        {
+            var endOfDay = end.Date.AddDays(1).AddTicks(-1);
+            using var context = _dbFactory.CreateDbContext();
+            return await context.RuleOccurrences
+                .Where(o => o.CourseId == courseId && o.Timestamp >= start.Date && o.Timestamp <= endOfDay)
+                .OrderBy(o => o.Timestamp)
+                .ToListAsync();
+        }
         /*
          * 
          * Schulen: Hier müssen wir den Tenant-Türsteher umgehen, 

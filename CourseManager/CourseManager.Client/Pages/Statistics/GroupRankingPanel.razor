@@ -1,0 +1,45 @@
+@using CourseManager.Data
+
+<div class="card shadow-sm h-100">
+    <div class="card-header fw-bold">🏆 Ranking</div>
+    @{
+        var rankings = BuildRankings();
+    }
+    @if (!rankings.Any())
+    {
+        <div class="card-body">
+            <p class="text-muted text-center mb-0">Keine Daten vorhanden.</p>
+        </div>
+    }
+    else
+    {
+        <ul class="list-group list-group-flush">
+            @for (int i = 0; i < rankings.Count; i++)
+            {
+                var (name, total) = rankings[i];
+                var rank = i + 1;
+                var medal = rank switch { 1 => "🥇", 2 => "🥈", 3 => "🥉", _ => $"#{rank}" };
+                var badgeClass = total >= 0 ? "bg-success" : "bg-danger";
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <span><span class="me-2">@medal</span>@name</span>
+                    <span class="badge @badgeClass rounded-pill">@total.ToString("F1") Pkt</span>
+                </li>
+            }
+        </ul>
+    }
+</div>
+
+@code {
+    [Parameter] public List<RuleOccurrence> Occurrences { get; set; } = new();
+    [Parameter] public List<CourseParticipant> Participants { get; set; } = new();
+
+    private List<(string Name, double Total)> BuildRankings() =>
+        Participants
+            .Where(p => p.Person != null)
+            .Select(p => (
+                Name: $"{p.Person.FirstName} {p.Person.LastName}",
+                Total: Occurrences.Where(o => o.PersonId == p.PersonId).Sum(o => o.BiasPoints)
+            ))
+            .OrderByDescending(x => x.Total)
+            .ToList();
+}

@@ -6,8 +6,12 @@
     // Wer?
     public Guid PersonId { get; set; }
 
-    // Was? (Wir speichern den Text fest ein, falls die Regel später gelöscht wird)
+    // Was? (Anzeigetext – mit Schülername, für Chronik/History)
     public string RuleName { get; set; } = string.Empty;
+
+    // Welche Regel? (Regelname ohne Schülerbezug – für Statistiken)
+    public string RuleTitle { get; set; } = string.Empty;
+
     public int Points { get; set; }
     public double BiasPoints { get; set; } = 0;
 

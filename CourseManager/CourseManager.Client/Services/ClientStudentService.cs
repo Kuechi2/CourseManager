@@ -238,4 +238,20 @@ public class ClientStudentService : IStudentService
         }
     }
 
+    public async Task<List<RuleOccurrence>> GetOccurrencesByCourseAsync(Guid courseId, DateTime start, DateTime end)
+    {
+        var startStr = start.ToString("yyyy-MM-dd");
+        var endStr = end.ToString("yyyy-MM-dd");
+        try
+        {
+            return await _http.GetFromJsonAsync<List<RuleOccurrence>>(
+                $"api/courses/{courseId}/occurrences/range?start={startStr}&end={endStr}") ?? new();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Fehler beim Laden der Kursstatistik: {ex.Message}");
+            return new();
+        }
+    }
+
 }

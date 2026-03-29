@@ -1,4 +1,4 @@
-﻿using CourseManager.Data;
+using CourseManager.Data;
 
 public interface IStudentService
 {
