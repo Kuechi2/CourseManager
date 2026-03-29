@@ -2,6 +2,7 @@
 @page "/svgcanvas"
 @page "/svgcanvas/{CourseId:guid}"
 @attribute [Authorize]
+@implements IDisposable
 @using CourseManager.Data
 @using System.Threading.Tasks
 @inject IStudentService Service
@@ -23,25 +24,31 @@
 
     <div class="flex-grow-1 bg-white border rounded position-relative shadow-inner" style="overflow: hidden;">
         <svg @ref="_svgElement"
-            viewBox="0 0 1000 600"
-            class="w-100 h-auto"
-            style="display: block; touch-action: none; background: white;"
-            @onpointerdown="OnSvgMouseDown"
-            @onpointerup="OnSvgMouseUp"
-            @onpointermove="OnSvgMouseMove">
+             viewBox="0 0 1000 600"
+             class="w-100 h-auto"
+             style="display: block; touch-action: none; background: white;"
+             @onpointerdown="OnSvgMouseDown"
+             @onpointerup="OnSvgMouseUp"
+             @onpointermove="OnSvgMouseMove">
             @foreach (var drawable in Manager.Drawables.Where(d => d.IsVisible && !IsBeingDragged(d as CanvasSeat)))
             {
                 @drawable.SvgRenderFragment
             }
             @foreach (var drawable in Manager.Drawables.Where(d => d.IsVisible && IsBeingDragged(d as CanvasSeat)))
             {
-                <g class="dragging-layer">
-                    @drawable.SvgRenderFragment
-                </g>
+                <g class="dragging-layer">@drawable.SvgRenderFragment</g>
             }
             @foreach (var seat in Manager.Drawables.OfType<CanvasSeat>().Where(s => s.Participant != null))
             {
                 <SeatStatusIndicator Seat="seat" />
+                var timer = _activeTimers.FirstOrDefault(t => t.Seats.Contains(seat));
+                if (timer != null)
+                {
+                    <SeatTimerOverlay Seat="seat"
+                                      SecondsRemaining="timer.SecondsRemaining"
+                                      TotalSeconds="timer.TotalSeconds"
+                                      OnCancel="() => CancelTimer(timer)" />
+                }
             }
         </svg>
     </div>
@@ -128,43 +135,10 @@
         transition: transform 0.1s ease-out;
     }
     </style>
-@{
-    var selectedSeats = Manager.SelectedDrawables.OfType<CanvasSeat>().ToList();
-}
-
-@if (selectedSeats.Any())
-{
-    <div class="rule-popup shadow border rounded bg-white p-2"
-         style="position: absolute; top: 10px; right: 10px; width: 300px; z-index: 1000;">
-
-        <div class="p-2 mb-2 bg-primary text-white rounded small">
-            @if (selectedSeats.Count == 1)
-            {
-                <span>👤 <b>@selectedSeats[0].OccupantName</b></span>
-            }
-            else
-            {
-                <span>👥 <b>@selectedSeats.Count Schüler</b> ausgewählt</span>
-            }
-        </div>
-        <div class="list-group list-group-flush overflow-auto" style="max-height: 450px;">
-            @foreach (var rule in activeRules)
-            {
-                <button type="button"
-                        class="list-group-item list-group-item-action py-2 px-3"
-                        @onclick="() => ExecuteRule(rule, selectedSeats)">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <span class="fw-bold small">@rule.Name</span>
-                        <span class="badge @(rule.Points >= 0 ? "bg-success" : "bg-danger")">
-                            @(rule.Points > 0 ? "+" : "")@rule.Points
-                        </span>
-                    </div>
-                </button>
-            }
-        </div>
-        <button class="btn btn-sm btn-light w-100 mt-2 border" @onclick="() => Manager.DeselectAll()">Abbrechen</button>
-    </div>
-}
+<RulePanel SelectedSeats="SelectedSeats"
+           ActiveRules="activeRules"
+           OnRuleSelected="HandleRuleSelected"
+           OnCancel="() => Manager.DeselectAll()" />
 
 <editor-card/>
 
@@ -660,21 +634,67 @@
         await Service.SaveCourseAsync(currentCourse);
         await ReloadCanvas();
     }
-    // === TOOLBAR ACTIONS ===
-    private void AddPoint() => Manager.AddRandomPoint();
-    private void AddLine()
+    // --- TIMER ---
+    private class TimerEntry
     {
-        var points = Manager.Drawables.OfType<CanvasPoint>().Take(2).ToList();
-        if (points.Count == 2)
+        public Rule Rule { get; init; } = default!;
+        public List<CanvasSeat> Seats { get; init; } = new();
+        public int TotalSeconds { get; init; }
+        public int SecondsRemaining { get; set; }
+        public TimerEntry(Rule rule, List<CanvasSeat> seats, int totalSeconds)
         {
-            Manager.AddDrawable(new CanvasLine
-            {
-                Start = points[0],
-                End = points[1],
-                Color = "gray"
-            });
+            Rule = rule; Seats = seats;
+            TotalSeconds = totalSeconds; SecondsRemaining = totalSeconds;
         }
     }
+
+    private List<TimerEntry> _activeTimers = new();
+    private System.Threading.Timer? _ticker;
+    private List<CanvasSeat> SelectedSeats =>
+        Manager.SelectedDrawables.OfType<CanvasSeat>().ToList();
+
+    private async Task HandleRuleSelected((Rule Rule, List<CanvasSeat> Seats) args)
+    {
+        var (rule, seats) = args;
+        if (rule.Type == RuleType.Timer && rule.DefaultDurationMinutes.HasValue)
+        {
+            StartTimer(rule, seats);
+            Manager.DeselectAll();
+        }
+        else
+        {
+            await ExecuteRule(rule, seats);
+        }
+    }
+
+    private void StartTimer(Rule rule, List<CanvasSeat> seats)
+    {
+        var entry = new TimerEntry(rule, seats, (rule.DefaultDurationMinutes ?? 1) * 60);
+        _activeTimers.Add(entry);
+
+        _ticker ??= new System.Threading.Timer(_ =>
+        {
+            InvokeAsync(async () =>
+            {
+                foreach (var t in _activeTimers.ToList())
+                {
+                    t.SecondsRemaining--;
+                    if (t.SecondsRemaining <= 0)
+                    {
+                        _activeTimers.Remove(t);
+                        await ExecuteRule(t.Rule, t.Seats);
+                    }
+                }
+                if (!_activeTimers.Any())
+                {
+                    _ticker?.Dispose();
+                    _ticker = null;
+                }
+                StateHasChanged();
+            });
+        }, null, 1000, 1000);
+    }
+
     private async Task Clear()
     {
         if (currentCourse == null || CurrentLayout == null) return;
@@ -682,11 +702,28 @@
         await Service.SaveCourseAsync(currentCourse);
         await ReloadCanvas();
     }
+
     private void SelectAllSeats(MouseEventArgs args)
     {
-        foreach(var drawable in Manager.Drawables.ToList())
+        foreach (var drawable in Manager.Drawables.ToList())
         {
             drawable.Select();
         }
+    }
+
+    private void CancelTimer(TimerEntry timer)
+    {
+        _activeTimers.Remove(timer);
+        if (!_activeTimers.Any())
+        {
+            _ticker?.Dispose();
+            _ticker = null;
+        }
+        StateHasChanged();
+    }
+
+    public void Dispose()
+    {
+        _ticker?.Dispose();
     }
 }

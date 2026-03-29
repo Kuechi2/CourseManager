@@ -46,6 +46,21 @@
                                         <option value="@RuleType.Partner">Partner</option>
                                         <option value="@RuleType.Timer">Timer</option>
                                     </select>
+
+                                    @if (rule.Type == RuleType.Timer)
+                                    {
+                                        <div class="mt-2 d-flex align-items-center gap-2">
+                                            <i class="bi bi-stopwatch text-warning"></i>
+                                            <input type="number"
+                                                   class="form-control form-control-sm bg-dark text-white border-warning"
+                                                   style="width: 80px;"
+                                                   @bind="rule.DefaultDurationMinutes"
+                                                   min="1" max="120"
+                                                   placeholder="Min." />
+                                            <span class="small text-white-50">Minuten</span>
+                                        </div>
+                                    }
+
                                     <div class="mt-3 d-flex align-items-center">
                                         <span class="me-2 small">Punkte:</span>
                                         <input type="number" class="form-control form-control-sm w-25 bg-dark text-white border-0" @bind="rule.Points" min="-10" max="10" />

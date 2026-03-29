@@ -1,0 +1,45 @@
+@using CourseManager.Data
+@using System.Globalization
+
+@if (SecondsRemaining > 0)
+{
+    double circumference = 2 * Math.PI * 22;
+    double progress = (double)SecondsRemaining / TotalSeconds;
+    double dashOffset = circumference * (1 - progress);
+    string color = progress > 0.5 ? "#6666FF" : progress > 0.25 ? "#ffc107" : "#dc3545";
+
+    <g transform="translate(@Seat.Data.PosX, @Seat.Data.PosY)">
+        <circle cx="0" cy="0" r="24" fill="rgba(0,0,0,0.3)" />
+        <circle cx="0" cy="0" r="22" fill="none" stroke="#555" stroke-width="4" />
+        <circle cx="0" cy="0" r="22"
+                fill="none"
+                stroke="@color"
+                stroke-width="4"
+                stroke-dasharray="@circumference.ToString("F1", CultureInfo.InvariantCulture)"
+                stroke-dashoffset="@dashOffset.ToString("F1", CultureInfo.InvariantCulture)"
+                transform="rotate(-90)"
+                stroke-linecap="round" />
+        <text x="0" y="5" text-anchor="middle"
+              font-size="14" font-weight="bold" fill="white"
+              style="pointer-events: none;">
+            @SecondsRemaining
+        </text>
+
+        @* Abbrechen-Button oben rechts *@
+        <g @onclick="() => OnCancel.InvokeAsync()"
+           @onclick:stopPropagation="true"
+           style="cursor: pointer;">
+            <circle cx="-18" cy="-18" r="9" fill="#dc3545" />
+            <text x="-18" y="-14" text-anchor="middle"
+                  font-size="11" font-weight="bold" fill="white"
+                  style="pointer-events: none;">✕</text>
+        </g>
+    </g>
+}
+
+@code {
+    [Parameter] public CanvasSeat Seat { get; set; } = default!;
+    [Parameter] public int SecondsRemaining { get; set; }
+    [Parameter] public int TotalSeconds { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+}
