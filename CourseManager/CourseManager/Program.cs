@@ -22,7 +22,7 @@ builder.Services.AddDbContextFactory<AppDataContext>(
 builder.Services.AddDbContext<AppDataContext>(
     options => options.UseSqlite(connectionString));
 
-// 3. IDENTITY (Unverändert, aber wichtig für den Context)
+// 3. IDENTITY (Unverï¿½ndert, aber wichtig fï¿½r den Context)
 builder.Services.AddIdentity<Teacher, IdentityRole<Guid>>(options => {
     options.Password.RequireDigit = false;
     options.Password.RequiredLength = 6;
@@ -32,7 +32,7 @@ builder.Services.AddIdentity<Teacher, IdentityRole<Guid>>(options => {
 .AddEntityFrameworkStores<AppDataContext>()
 .AddDefaultTokenProviders();
 
-// 4. BACKGROUND SERVICES
+// 4. BACKGROUND SERVICES AUSGESCHALTET (kï¿½nnen bei Bedarf wieder aktiviert werden)
 //builder.Services.AddScoped<SchoolStatsService>();
 //builder.Services.AddHostedService<DailyMaintenanceBackgroundService>();
 // 3. ANWENDUNGS-SERVICES
@@ -42,7 +42,7 @@ builder.Services.AddScoped<IStudentService, StudentService>();
 builder.Services.AddScoped<IAccountService, TeacherService>(); 
 builder.Services.AddScoped<IUserProvider, UserProvider>();
 builder.Services.AddScoped<ITenantService, TenantService>();
-builder.Services.AddCascadingAuthenticationState(); // Wichtig für Blazor & Identity
+builder.Services.AddCascadingAuthenticationState(); // Wichtig fï¿½r Blazor & Identity
 builder.Services.AddAuthorization();
 builder.Services.AddScoped<AuthenticationStateProvider, PersistingServerAuthenticationStateProvider>();
 builder.Services.AddScoped<UserProvider>();
@@ -114,7 +114,7 @@ app.MapPost("/auth/register", async (
         return Results.Redirect("/");
     }
 
-    // Bei Fehlern zurück zur Seite mit Fehlermeldung
+    // Bei Fehlern zurï¿½ck zur Seite mit Fehlermeldung
     var errorQuery = string.Join(",", result.Errors.Select(e => e.Description));
     return Results.Redirect($"/newuser?error={Uri.EscapeDataString(errorQuery)}");
 }).DisableAntiforgery();
