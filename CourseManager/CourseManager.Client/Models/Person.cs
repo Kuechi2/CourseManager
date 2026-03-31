@@ -16,6 +16,8 @@ namespace CourseManager.Data
         public string LastName { get; set; } = string.Empty;
         public DateTime BirthDate { get; set; } = DateTime.Today;
         public Guid SchoolId { get; set; }
+        public Guid CreatedByTeacherId { get; set; } // Der "Verantwortliche"
+        public DateTime CreatedAt { get; set; }
         public string FullName => $"{FirstName} {LastName}";
     }
 }

@@ -76,20 +76,26 @@ namespace CourseManager.Data // Prüfe, ob dein Namespace so heißt!
                 Console.WriteLine(">>> SEEDING MIT SCHUL-STRUKTUR ERFOLGREICH <<<");
                 // 6. Ein paar Schüler für die Schule anlegen
                 var students = new List<Person>
-{
-                new Person { Id = Guid.NewGuid(), FirstName = "Max", 
-                    LastName = "Mustermann", Gender = Person.EGender.Divers, 
-                    BirthDate = DateTime.Now.AddYears(-16), 
-                    SchoolId = school.Id },
-                new Person { Id = Guid.NewGuid(), FirstName = "Emma", 
-                    LastName = "Beispiel", Gender = Person.EGender.Mädchen, 
-                    BirthDate = DateTime.Now.AddYears(-15), 
-                    SchoolId = school.Id },
-                new Person { Id = Guid.NewGuid(), FirstName = "Linus", 
-                    LastName = "Torvalds", Gender = Person.EGender.Junge, 
-                    BirthDate = DateTime.Now.AddYears(-17), 
-        SchoolId = school.Id }
-};
+                {
+                    new Person { Id = Guid.NewGuid(), FirstName = "Max",
+                        LastName = "Mustermann", Gender = Person.EGender.Divers,
+                        BirthDate = DateTime.Now.AddYears(-16),
+                        SchoolId = school.Id,
+                        CreatedByTeacherId = prof.Id,
+                        CreatedAt = DateTime.UtcNow },
+                    new Person { Id = Guid.NewGuid(), FirstName = "Emma",
+                        LastName = "Beispiel", Gender = Person.EGender.Mädchen,
+                        BirthDate = DateTime.Now.AddYears(-15),
+                        SchoolId = school.Id,
+                        CreatedByTeacherId = prof.Id,
+                        CreatedAt = DateTime.UtcNow },
+                    new Person { Id = Guid.NewGuid(), FirstName = "Linus",
+                        LastName = "Torvalds", Gender = Person.EGender.Junge,
+                        BirthDate = DateTime.Now.AddYears(-17),
+                        SchoolId = school.Id,
+                        CreatedByTeacherId = prof.Id,
+                        CreatedAt = DateTime.UtcNow }
+                };
                 context.Students.AddRange(students);
 
                 await context.SaveChangesAsync();

@@ -12,8 +12,8 @@ namespace CourseManager.Data
         [JsonIgnore]
         public Course? Course { get; set; }
 
-        public Guid PersonId { get; set; }
-        public Person Person { get; set; } = null!;
+        public Guid PersonId { get; set; }       // FK-Eigenschaft
+        public Person Person { get; set; } = null!; // Navigations-Property
         // DEIN AUSGLEICH: Hier landen später die Koordinaten für den Sitzplan
         public int PosX { get; set; }
         public int PosY { get; set; }

@@ -114,7 +114,7 @@ public class CourseDataService : BaseDataService, ICourseService
             if (dbEnroll == null)
             {
                 uiEnroll.CourseId = dbCourse.Id;
-                uiEnroll.Person = null;
+                uiEnroll.Person = null!;
                 dbCourse.Enrollments.Add(uiEnroll);
             }
             else

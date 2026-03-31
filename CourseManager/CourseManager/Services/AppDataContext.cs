@@ -81,5 +81,38 @@ public class AppDataContext : IdentityDbContext<Teacher, IdentityRole<Guid>, Gui
             .WithOne()
             .HasForeignKey(s => s.CourseAssignmentId)
             .OnDelete(DeleteBehavior.Cascade);
+        // 1. Wenn ein Schüler (Person) gelöscht wird -> Lösche seine Regel-Vorkommnisse
+        builder.Entity<RuleOccurrence>()
+            .HasOne<Person>() // Falls RuleOccurrence eine Navigation zu Person hat
+            .WithMany()       // Falls Person eine Liste von RuleOccurrences hat, hier .WithMany(p => p.RuleOccurrences)
+            .HasForeignKey(ro => ro.PersonId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // 2. Wenn ein Schüler gelöscht wird -> Lösche seine Kursteilnahmen
+        builder.Entity<CourseParticipant>()
+            .HasOne(cp => cp.Person)  // Navigation-Property referenzieren!
+            .WithMany()
+            .HasForeignKey(cp => cp.PersonId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // 3. Bestehende Kaskade für Assignments (hast du schon drin)
+        builder.Entity<CourseAssignment>()
+            .HasMany(a => a.StatusEntries)
+            .WithOne()
+            .HasForeignKey(s => s.CourseAssignmentId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // 4. Falls StudentAssignmentStatus an einem Schüler hängt:
+        builder.Entity<StudentAssignmentStatus>()
+            .HasOne<Person>()
+            .WithMany()
+            .HasForeignKey(s => s.CourseParticipantId)
+            .OnDelete(DeleteBehavior.Cascade);
+        
+        builder.Entity<Person>()
+            .HasOne<Teacher>() // Kein Lambda, da keine Navigations-Property in Person vorhanden
+            .WithMany()
+            .HasForeignKey(p => p.CreatedByTeacherId)
+            .OnDelete(DeleteBehavior.Restrict); // WICHTIG: Verhindert versehentliches Löschen des Lehrers
     }
 }

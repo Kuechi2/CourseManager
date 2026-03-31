@@ -27,12 +27,15 @@ public class StudentDataService : BaseDataService, IStudentService
             if (exists) throw new InvalidOperationException("Diese Person existiert bereits.");
             if (student.Id == Guid.Empty) student.Id = Guid.NewGuid();
             student.SchoolId = context.GetSchoolId();
+            student.CreatedByTeacherId = CurrentTeacherId; // ← FEHLTE
+            student.CreatedAt = DateTime.UtcNow;           // ← FEHLTE
             context.Students.Add(student);
         }
         else
         {
             Console.WriteLine($"[TRACE] Aktualisiere Student: {student.FirstName} {student.LastName}");
             student.SchoolId = context.GetSchoolId();
+            // CreatedByTeacherId beim Update NICHT überschreiben
             context.Entry(dbStudent).CurrentValues.SetValues(student);
         }
         await context.SaveChangesAsync();

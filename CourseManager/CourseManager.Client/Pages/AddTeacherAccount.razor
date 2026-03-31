@@ -60,5 +60,7 @@
     [Inject] private NavigationManager Nav { get; set; } = default!;
 
     private bool ShowError => Nav.Uri.Contains("error=");
-    private string ErrorMessage = "Ein Fehler ist aufgetreten.";
+    private string ErrorMessage => Nav.Uri.Contains("invalid_input")
+        ? "Bitte alle Felder ausfüllen."
+        : "Registrierung fehlgeschlagen. E-Mail bereits vergeben?";
 }
