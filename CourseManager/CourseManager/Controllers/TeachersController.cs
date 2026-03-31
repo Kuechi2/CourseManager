@@ -5,8 +5,8 @@ using Microsoft.AspNetCore.Mvc;
 [Route("api/[controller]")]
 public class TeachersController : ControllerBase
 {
-    private readonly IStudentService _service;
-    public TeachersController(IStudentService service) => _service = service;
+    private readonly ITeacherService _service;
+    public TeachersController(ITeacherService service) => _service = service;
 
     [HttpGet]
     public async Task<ActionResult<List<TeacherDto>>> Get()

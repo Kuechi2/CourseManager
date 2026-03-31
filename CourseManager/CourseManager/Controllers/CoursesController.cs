@@ -7,9 +7,9 @@ namespace CourseManager.Server.Controllers;
 [Route("api/[controller]")]
 public class CoursesController : ControllerBase
 {
-    private readonly IStudentService _service;
+    private readonly ICourseService _service;
 
-    public CoursesController(IStudentService service)
+    public CoursesController(ICourseService service)
     {
         _service = service;
     }

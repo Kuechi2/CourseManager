@@ -1,7 +1,9 @@
 ﻿@page "/manage-courses"
 @attribute [Authorize]
 @using CourseManager.Data
-@inject IStudentService Service
+@inject ICourseService CourseService
+@inject IStudentService StudentService
+@inject IRuleSetService RuleSetService
 @inject IUserProvider UserProvider
 @inject IJSRuntime JS
 
@@ -75,7 +77,7 @@
                     <div class="card shadow">
                         <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
                             <span>Bearbeiten: <strong>@selectedCourse.Title</strong></span>
-                            <button class="btn btn-success btn-sm" @onclick="() => Service.SaveCourseAsync(selectedCourse)">
+                            <button class="btn btn-success btn-sm" @onclick="() => CourseService.SaveCourseAsync(selectedCourse)">
                                 <i class="bi bi-save"></i> Speichern
                             </button>
                         </div>
@@ -218,9 +220,9 @@
 
     private async Task LoadData()
     {
-        allCourses = await Service.GetCoursesWithParticipantsAsync();
-        allPersons = await Service.GetStudentsAsync();
-        allRuleSets = await Service.GetRuleSetsAsync();
+        allCourses = await CourseService.GetCoursesWithParticipantsAsync();
+        allPersons = await StudentService.GetStudentsAsync();
+        allRuleSets = await RuleSetService.GetRuleSetsAsync();
     }
 
     private async Task CreateCourse()
@@ -249,7 +251,7 @@
                 SchoolId = (Guid)teacher.ActiveSchoolId!,
                 Enrollments = new List<CourseParticipant>()
             };
-            await Service.SaveCourseAsync(course);
+            await CourseService.SaveCourseAsync(course);
             newCourseName = ""; newRoom = "";
             await LoadData();
         }
@@ -290,14 +292,14 @@
         };
 
         selectedCourse.Enrollments.Add(newEnrollment);
-        await Service.SaveCourseAsync(selectedCourse);
+        await CourseService.SaveCourseAsync(selectedCourse);
         // Kein vollständiges LoadData nötig, wenn wir das Objekt im Speicher aktuell halten
     }
 
     private async Task RemoveParticipant(CourseParticipant e)
     {
         selectedCourse?.Enrollments.Remove(e);
-        await Service.SaveCourseAsync(selectedCourse!);
+        await CourseService.SaveCourseAsync(selectedCourse!);
     }
 
     private async Task ConfirmDelete(Course c)
@@ -305,7 +307,7 @@
         var confirmed = await JS.InvokeAsync<bool>("confirm", $"Soll der Kurs '{c.Title}' wirklich gelöscht werden?");
         if (confirmed)
         {
-            await Service.DeleteCourseAsync(c.Id);
+            await CourseService.DeleteCourseAsync(c.Id);
             if (selectedCourse?.Id == c.Id) selectedCourse = null;
             await LoadData();
         }

@@ -1,7 +1,8 @@
 ﻿@page "/student-hero-stats"
 @attribute [Authorize]
 @using CourseManager.Data
-@inject IStudentService Service
+@inject IRuleOccurrenceService RuleOccurrenceService
+@inject ICourseService CourseService
 <div class="hero-container">
     <aside class="sidebar">
         <div class="search-box">
@@ -232,7 +233,7 @@
     public record Badge(string Name, string Icon, string Description);
     protected override async Task OnInitializedAsync()
     {
-        var courses = await Service.GetCoursesWithParticipantsAsync();
+        var courses = await CourseService.GetCoursesWithParticipantsAsync();
         if (courses.Any())
         {
             foreach (var CurrentCourse in courses)
@@ -242,7 +243,7 @@
                 {
                     if (!allEnrollments.Any(e => e.Person.Id == enrollment.Person.Id))
                         allEnrollments.Add(enrollment);
-                    var history = await Service.GetOccurrencesByDateAsync(enrollment.Person.Id, DateTime.Today.AddMonths(-1), DateTime.Today);
+                    var history = await RuleOccurrenceService.GetOccurrencesByDateAsync(enrollment.Person.Id, DateTime.Today.AddMonths(-1), DateTime.Today);
                     StudentTrends[enrollment.Person.Id] = CalculateTrend(history);
                 }
             }
@@ -258,7 +259,7 @@
     private async Task LoadData()
     {
         if (selectedStudent == null) return;
-        Occurrences = await Service.GetOccurrencesByDateAsync(selectedStudent.Id, startDate, endDate);
+        Occurrences = await RuleOccurrenceService.GetOccurrencesByDateAsync(selectedStudent.Id, startDate, endDate);
         StateHasChanged();
     }
     private string GetTrendEmoji(Guid studentId) => StudentTrends.GetValueOrDefault(studentId) switch

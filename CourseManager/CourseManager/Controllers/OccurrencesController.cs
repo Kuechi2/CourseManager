@@ -4,8 +4,8 @@
 [Route("api")]
 public class OccurrencesController : ControllerBase
 {
-    private readonly IStudentService _service;
-    public OccurrencesController(IStudentService service) => _service = service;
+    private readonly IRuleOccurrenceService _service;
+    public OccurrencesController(IRuleOccurrenceService service) => _service = service;
 
     [HttpGet("courses/{courseId}/occurrences/today")]
     public async Task<ActionResult<List<RuleOccurrence>>> GetToday(Guid courseId)

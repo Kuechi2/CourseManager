@@ -7,9 +7,9 @@ using Microsoft.AspNetCore.Mvc;
 [Route("api/[controller]")]
 public class AssignmentsController : ControllerBase
 {
-    private readonly IStudentService _service;
+    private readonly ITaskAssistanceService _service;
 
-    public AssignmentsController(IStudentService service)
+    public AssignmentsController(ITaskAssistanceService service)
     {
         _service = service;
     }

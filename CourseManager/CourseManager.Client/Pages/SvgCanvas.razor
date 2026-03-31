@@ -5,7 +5,11 @@
 @implements IDisposable
 @using CourseManager.Data
 @using System.Threading.Tasks
-@inject IStudentService Service
+@inject ISchoolService SchoolService
+@inject ICourseService CourseService
+@inject IRuleSetService RuleSetService
+@inject ITeacherService TeacherService
+@inject IRuleOccurrenceService RuleOccurrenceService
 @inject IUserProvider userProvider
 @inject AssignmentService State
 <div class="rule-status-panel p-1 mb-1 border rounded @(activeRules.Any() ? "bg-success-subtle" : "bg-secondary-subtle")">
@@ -173,10 +177,10 @@
             _status = "Fehler: Nutzer ist nicht Mitglied der Schule";
             return;
         }
-        ActiveSchool = await Service.GetSchoolWithIdAsync(teacher.ActiveSchoolId.Value);
+        ActiveSchool = await SchoolService.GetSchoolWithIdAsync(teacher.ActiveSchoolId.Value);
         if (CourseId != Guid.Empty)
         {
-            currentCourse = await Service.GetCourseByIdAsync(CourseId);
+            currentCourse = await CourseService.GetCourseByIdAsync(CourseId);
         }
         else
         {
@@ -184,7 +188,7 @@
             var today = now.DayOfWeek;
             var currentTime = TimeOnly.FromDateTime(now);
 
-            var allCourses = await Service.GetCoursesWithParticipantsAsync();
+            var allCourses = await CourseService.GetCoursesWithParticipantsAsync();
 
             currentCourse = allCourses
                 .OrderByDescending(c => c.Appointments.Any(a => a.Day == today))
@@ -202,7 +206,7 @@
 
             if (currentCourse.RuleSetId.HasValue)
             {
-                var ruleSet = await Service.GetRuleSetByIdAsync(currentCourse.RuleSetId.Value);
+                var ruleSet = await RuleSetService.GetRuleSetByIdAsync(currentCourse.RuleSetId.Value);
                 if (ruleSet != null)
                 {
                     activeRules = ruleSet.Rules ?? new();
@@ -236,7 +240,7 @@
                     {
                         var seat = new CanvasSeat(seatData, participant) { Size = 64 };
 
-                        var history = await Service.GetLastOccurrencesAsync(participant.PersonId, 10);
+                        var history = await RuleOccurrenceService.GetLastOccurrencesAsync(participant.PersonId, 10);
                         _sessionOccurrences.AddRange(history);
                         seat.CurrentBiasScore = ProgressiveEvaluationLogic.CalculateContinuityScore(history);
 
@@ -289,7 +293,7 @@
         currentCourse.SeatLayouts.Add(newLayout);
         try
         {
-            await Service.SaveCourseAsync(currentCourse);
+            await CourseService.SaveCourseAsync(currentCourse);
             _status = $"✓ Layout '{newLayout.Name}' erstellt!";
             StateHasChanged();
         }
@@ -314,7 +318,7 @@
         }
         try
         {
-            await Service.SaveCourseAsync(currentCourse);
+            await CourseService.SaveCourseAsync(currentCourse);
             await ReloadCanvas();
             _status = $"Layout '{selected?.Name}' geladen";
         }
@@ -342,7 +346,7 @@
         {
             remaining.IsActive = true;
         }
-        await Service.SaveCourseAsync(currentCourse);
+        await CourseService.SaveCourseAsync(currentCourse);
         await ReloadCanvas();
         _status = "✓ Layout gelöscht";
     }
@@ -350,7 +354,7 @@
     private async Task ReloadCanvas()
     {
         Manager.ClearAll();
-        currentCourse = await Service.GetCourseWithParticipantsAsync(currentCourse!.Id);
+        currentCourse = await CourseService.GetCourseWithParticipantsAsync(currentCourse!.Id);
 
         if (currentCourse == null) return;
 
@@ -367,7 +371,7 @@
                 if (participant != null)
                 {
                     var seat = new CanvasSeat(seatData, participant) { Size = 64 };
-                    var history = await Service.GetLastOccurrencesAsync(participant.PersonId, 10);
+                    var history = await RuleOccurrenceService.GetLastOccurrencesAsync(participant.PersonId, 10);
                     _sessionOccurrences.AddRange(history);
                     seat.CurrentBiasScore = ProgressiveEvaluationLogic.CalculateContinuityScore(history);
                     Manager.AddDrawable(seat);
@@ -412,7 +416,7 @@
             _status = "Speichere in Datenbank...";
             try
             {
-                await Service.SaveCourseAsync(currentCourse);
+                await CourseService.SaveCourseAsync(currentCourse);
                 _status = "Gespeichert um " + DateTime.Now.ToShortTimeString();
                 _hasUnsavedChanges = false;
             }
@@ -447,7 +451,7 @@
                 BiasPoints = rule.Points - teacher!.PointsBias + SchoolBias,
                 Timestamp = DateTime.Now
             };
-            await Service.SaveOccurrenceAsync(occurrence);
+            await RuleOccurrenceService.SaveOccurrenceAsync(occurrence);
             _sessionOccurrences.Add(occurrence);
         }
         foreach (var seat in Manager.Drawables.OfType<CanvasSeat>())
@@ -469,7 +473,7 @@
         UpdateCourseAverage();
         teacher!.PointsBias = teacher.PointsBias =_courseAverage / 55d;
         teacher!.IsApproved = true;
-        await Service.AddTeacher(teacher);
+        await TeacherService.AddTeacher(teacher);
         Console.WriteLine($"Lehrer-Bias aktualisiert: {teacher.PointsBias:F2}");
         ColorSeatsByBias();
         Manager.DeselectAll();
@@ -581,7 +585,7 @@
     private async void NewSeat()
     {
         if (currentCourse == null) return;
-        await Service.SaveCourseAsync(currentCourse);
+        await CourseService.SaveCourseAsync(currentCourse);
     }
     private void OnSvgMouseMove(PointerEventArgs e)
     {
@@ -632,7 +636,7 @@
             PosX = 200,
             PosY = 200
         });
-        await Service.SaveCourseAsync(currentCourse);
+        await CourseService.SaveCourseAsync(currentCourse);
         await ReloadCanvas();
     }
     // --- TIMER ---
@@ -700,7 +704,7 @@
     {
         if (currentCourse == null || CurrentLayout == null) return;
         CurrentLayout.Seats.RemoveAll(seat => seat.CourseParticipantId == null);
-        await Service.SaveCourseAsync(currentCourse);
+        await CourseService.SaveCourseAsync(currentCourse);
         await ReloadCanvas();
     }
 

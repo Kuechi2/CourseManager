@@ -8,8 +8,8 @@ using Microsoft.EntityFrameworkCore;
 public class SchoolsController : ControllerBase
 {
     private readonly AppDataContext _context;
-    private readonly IStudentService _service;
-    public SchoolsController(AppDataContext context, IStudentService service)
+    private readonly ISchoolService _service;
+    public SchoolsController(AppDataContext context, ISchoolService service)
     {
         _context = context;
         _service = service;

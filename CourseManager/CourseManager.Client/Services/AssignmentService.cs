@@ -2,7 +2,7 @@
 
 public class AssignmentService
 {
-    private readonly IStudentService _service;
+    private readonly ITaskAssistanceService _service;
     public Guid CourseId { get; private set; }
     public List<CourseAssignment> Assignments { get; private set; } = new();
     private CourseAssignment? _selectedAssignment;
@@ -17,7 +17,7 @@ public class AssignmentService
     }
     public event Action? OnChange;
 
-    public AssignmentService(IStudentService service) => _service = service; //Injection!
+    public AssignmentService(ITaskAssistanceService service) => _service = service; //Injection!
 
     public bool IsCompleted(Guid? participantId) =>
         SelectedAssignment?.StatusEntries.Any(s => s.CourseParticipantId == participantId && s.IsCompleted) ?? false;

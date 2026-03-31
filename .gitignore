@@ -362,3 +362,5 @@ MigrationBackup/
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
 /CourseManager/CourseManager/geometry.db
+/CourseManager/CourseManager/geometry.db-shm
+/CourseManager/CourseManager/geometry.db-wal

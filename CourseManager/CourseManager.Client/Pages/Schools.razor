@@ -1,7 +1,8 @@
 ﻿@page "/schools"
 @using CourseManager.Data
 @using Microsoft.AspNetCore.Identity
-@inject IStudentService Service
+@inject ISchoolService SchoolService
+@inject ITeacherService TeacherService
 @inject AuthenticationStateProvider AuthProvider
 
 <PageTitle>Schulverwaltung</PageTitle>
@@ -233,13 +234,13 @@
 
     private async Task LoadData()
     {
-        AllSchools = await Service.GetAllSchoolsGlobalAsync();
+        AllSchools = await SchoolService.GetAllSchoolsGlobalAsync();
         var authState = await AuthProvider.GetAuthenticationStateAsync();
         var user = authState.User;
 
         if (user.Identity?.IsAuthenticated == true)
         {
-            var teachers = await Service.GetTeachersAsync();
+            var teachers = await TeacherService.GetTeachersAsync();
             var userId = user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
             CurrentTeacher = teachers.FirstOrDefault(t => t.Id.ToString() == userId);
             Console.WriteLine($"[DEBUG] Aktueller Lehrer: {CurrentTeacher?.Id} - {CurrentTeacher?.ActiveSchoolId} - Approved: {CurrentTeacher?.IsApproved}");
@@ -253,7 +254,7 @@
         StateHasChanged();
         if (CurrentTeacher?.IsAdmin == true)
         {
-            var allTeachers = await Service.GetTeachersAsync();
+            var allTeachers = await TeacherService.GetTeachersAsync();
             var mySchoolId = CurrentTeacher.ActiveSchoolId;
 
             // 1. Die Warteliste
@@ -273,7 +274,7 @@
         if (CurrentTeacher == null) return;
         CurrentTeacher.ActiveSchoolId = school.Id;
         CurrentTeacher.IsApproved = false;
-        await Service.AddTeacher(CurrentTeacher);
+        await TeacherService.AddTeacher(CurrentTeacher);
         await LoadData();
     }
 
@@ -283,7 +284,7 @@
         CurrentTeacher.ActiveSchoolId = null;
         CurrentTeacher.IsApproved = false;
         CurrentTeacher.IsAdmin = false;
-        await Service.AddTeacher(CurrentTeacher);
+        await TeacherService.AddTeacher(CurrentTeacher);
         await LoadData();
     }
 
@@ -300,7 +301,7 @@
 
         try
         {
-            await Service.CreateSchoolAsync(CurrentTeacher!.Id, NewSchoolName, NewSchoolAddress);
+            await SchoolService.CreateSchoolAsync(CurrentTeacher!.Id, NewSchoolName, NewSchoolAddress);
             ShowCreateModal = false;
             await LoadData();
         }
@@ -309,14 +310,14 @@
     private async Task ApproveTeacher(TeacherDto t)
     {
         t.IsApproved = true;
-        await Service.AddTeacher(t);
+        await TeacherService.AddTeacher(t);
         await LoadData();
     }
 
     private async Task PromoteTeacher(TeacherDto t)
     {
         t.IsAdmin = true;
-        await Service.AddTeacher(t);
+        await TeacherService.AddTeacher(t);
         await LoadData();
     }
 
@@ -327,7 +328,7 @@
         t.IsApproved = false;
         t.IsAdmin = false;
 
-        await Service.AddTeacher(t);
+        await TeacherService.AddTeacher(t);
         await LoadData();
     }
 }

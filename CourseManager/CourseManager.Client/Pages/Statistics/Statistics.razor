@@ -2,7 +2,8 @@
 @attribute [Authorize]
 @layout MainLayout
 @using CourseManager.Data
-@inject IStudentService Service
+@inject ICourseService CourseService
+@inject IRuleOccurrenceService RuleOccurrenceService
 
 <div class="container-fluid mt-3">
     <div class="d-flex align-items-center gap-2 mb-3">
@@ -76,7 +77,7 @@
 
     protected override async Task OnInitializedAsync()
     {
-        _courses = await Service.GetCoursesWithParticipantsAsync();
+        _courses = await CourseService.GetCoursesWithParticipantsAsync();
     }
 
     private async Task LoadDataAsync()
@@ -84,7 +85,7 @@
         if (string.IsNullOrEmpty(_selectedCourseId)) return;
         _loading = true;
         StateHasChanged();
-        _occurrences = await Service.GetOccurrencesByCourseAsync(
+        _occurrences = await RuleOccurrenceService.GetOccurrencesByCourseAsync(
             Guid.Parse(_selectedCourseId), _startDate, _endDate);
         _loading = false;
     }

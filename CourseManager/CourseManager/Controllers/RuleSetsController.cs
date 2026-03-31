@@ -5,9 +5,9 @@ using Microsoft.AspNetCore.Mvc;
 [Route("api/[controller]")]
 public class RuleSetsController : ControllerBase
 {
-    private readonly IStudentService _service;
+    private readonly IRuleSetService _service;
 
-    public RuleSetsController(IStudentService service)
+    public RuleSetsController(IRuleSetService service)
     {
         _service = service;
     }
