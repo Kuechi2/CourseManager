@@ -23,7 +23,12 @@ builder.Services.AddIdentity<Teacher, IdentityRole<Guid>>(options => {
 .AddEntityFrameworkStores<AppDataContext>()
 .AddDefaultTokenProviders();
 
-// Services – je Interface eine Klasse
+// Services â€“ je Interface eine Klasse
+// 4. BACKGROUND SERVICES AUSGESCHALTET (kï¿½nnen bei Bedarf wieder aktiviert werden)
+//builder.Services.AddScoped<SchoolStatsService>();
+//builder.Services.AddHostedService<DailyMaintenanceBackgroundService>();
+// 3. ANWENDUNGS-SERVICES
+// In der Program.cs des SERVER-Projekts
 builder.Services.AddScoped<AssignmentService>();
 builder.Services.AddScoped<IStudentService,        StudentDataService>();
 builder.Services.AddScoped<ICourseService,          CourseDataService>();
